@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Sistem Absensi Mahasiswa UPN "Veteran" Jakarta</title>
+  <meta name="description" content="Portal Pengelola Akademik & Admin Presensi Universitas Pembangunan Nasional 'Veteran' Jakarta">
+  <link rel="icon" type="image/png" href="../assets/logo-upnvj.png">
+
+  <!-- Google Fonts: Plus Jakarta Sans, Outfit, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Admin Stylesheet -->
+  <link rel="stylesheet" href="css/admin.css">
+
+  <!-- CDN Libraries (Chart.js, SheetJS, jsPDF, QR, Scanner, Barcode, Lucide) -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Offline Banner -->
+  <div id="admin-offline-banner" class="hidden" style="background: #f59e0b; color: #0b2341; padding: 8px 16px; text-align: center; font-size: 12px; font-weight: 700; position: sticky; top: 0; z-index: 1000;">
+    Mode Offline: Koneksi terputus. Perubahan lokal akan disinkronkan saat terhubung kembali.
+  </div>
+
+  <!-- ==========================================================================
+       1. HALAMAN LOGIN ADMINISTRATOR
+       ========================================================================== -->
+  <div id="admin-login-view" class="hidden" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #07172c 0%, #0b2341 50%, #173861 100%);">
+    <div style="width: 100%; max-width: 440px; background: #ffffff; border-radius: 20px; padding: 36px 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);">
+      <div style="text-align: center; margin-bottom: 28px;">
+        <div style="width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 14px; background: #ffffff; padding: 6px; box-shadow: 0 4px 12px rgba(11,35,65,0.15); display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0;">
+          <img src="../assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='assets/logo-upnvj.png';">
+        </div>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0b2341; font-family: var(--font-heading);">Portal Administrator</h2>
+        <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Sistem Absensi Mahasiswa UPN "Veteran" Jakarta</p>
+      </div>
+
+      <form id="form-admin-login">
+        <div class="form-group">
+          <label class="form-label">Email Administrator / Dosen</label>
+          <input type="email" id="admin-login-email" class="form-input" placeholder="nama@upnvj.ac.id" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">Kata Sandi</label>
+            <button type="button" id="btn-forgot-password" style="background: none; border: none; font-size: 11px; font-weight: 700; color: #0b2341; cursor: pointer;">Lupa Sandi?</button>
+          </div>
+          <div style="position: relative;">
+            <input type="password" id="admin-login-password" class="form-input" style="padding-right: 40px;" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" id="btn-toggle-login-pass" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer;">
+              <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" id="btn-submit-admin-login" class="btn-portal btn-primary" style="width: 100%; height: 44px; margin-top: 12px; font-weight: 700;">
+          Masuk ke Admin Panel
+        </button>
+      </form>
+
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center;">
+        <a href="../" style="font-size: 12px; color: #64748b; text-decoration: none; font-weight: 600;">
+          ← Kembali ke Halaman Presensi Mahasiswa
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       2. TAMPILAN UTAMA LAYOUT ADMIN
+       ========================================================================== -->
+  <div id="admin-app-layout" class="admin-layout hidden">
+    <!-- Mobile Backdrop -->
+    <div id="sidebar-mobile-backdrop" class="admin-drawer-backdrop hidden"></div>
+
+    <!-- Sidebar Kiri -->
+    <aside id="admin-sidebar" class="admin-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo-frame">
+          <img src="../assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 32px; height: 32px; object-fit: contain;" onerror="this.onerror=null; this.src='assets/logo-upnvj.png';">
+        </div>
+        <div>
+          <div class="sidebar-brand-title">UPNVJ Presensi</div>
+          <div class="sidebar-brand-sub">Admin Panel</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav-scroll">
+        <div class="sidebar-nav-category">Utama</div>
+        <a href="#/dashboard" class="sidebar-nav-item active">
+          <i data-lucide="layout-dashboard" style="width: 18px; height: 18px;"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <div class="sidebar-nav-category nav-student-manage">Akademik & Kelas</div>
+        <a href="#/mahasiswa" class="sidebar-nav-item nav-student-manage">
+          <i data-lucide="users" style="width: 18px; height: 18px;"></i>
+          <span>Data Mahasiswa</span>
+        </a>
+        <a href="#/matakuliah" class="sidebar-nav-item">
+          <i data-lucide="book-open" style="width: 18px; height: 18px;"></i>
+          <span>Mata Kuliah</span>
+        </a>
+        <a href="#/sesi" class="sidebar-nav-item">
+          <i data-lucide="calendar" style="width: 18px; height: 18px;"></i>
+          <span>Sesi Perkuliahan</span>
+        </a>
+        <a href="#/absensi" class="sidebar-nav-item">
+          <i data-lucide="check-square" style="width: 18px; height: 18px;"></i>
+          <span>Data Presensi</span>
+        </a>
+        <a href="#/scanner" class="sidebar-nav-item">
+          <i data-lucide="scan-line" style="width: 18px; height: 18px;"></i>
+          <span>Scanner Kiosk</span>
+        </a>
+        <a href="#/izin" class="sidebar-nav-item">
+          <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+          <span>Pengajuan Izin</span>
+          <span id="badge-leave-pending" class="sidebar-badge hidden">0</span>
+        </a>
+
+        <div class="sidebar-nav-category">Laporan & Info</div>
+        <a href="#/laporan" class="sidebar-nav-item">
+          <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
+          <span>Rekap & Matriks</span>
+        </a>
+        <a href="#/pengumuman" class="sidebar-nav-item">
+          <i data-lucide="megaphone" style="width: 18px; height: 18px;"></i>
+          <span>Pengumuman</span>
+        </a>
+
+        <div class="sidebar-nav-category nav-superadmin-only">Superadmin</div>
+        <a href="#/admin" class="sidebar-nav-item nav-superadmin-only">
+          <i data-lucide="user-check" style="width: 18px; height: 18px;"></i>
+          <span>Kelola Admin/Dosen</span>
+        </a>
+        <a href="#/auditlog" class="sidebar-nav-item nav-superadmin-only">
+          <i data-lucide="shield-alert" style="width: 18px; height: 18px;"></i>
+          <span>Audit Log</span>
+        </a>
+        <a href="#/pengaturan" class="sidebar-nav-item nav-superadmin-only">
+          <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
+          <span>Pengaturan Sistem</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-user-footer">
+        <div class="sidebar-user-info">
+          <div id="sidebar-admin-avatar" class="sidebar-avatar">A</div>
+          <div>
+            <div id="sidebar-admin-name" class="sidebar-user-name">Administrator</div>
+            <div id="sidebar-admin-role" class="sidebar-user-role">Super Administrator</div>
+          </div>
+        </div>
+        <a href="#/profil" style="color: rgba(255,255,255,0.6);" title="Buka Profil">
+          <i data-lucide="user" style="width: 16px; height: 16px;"></i>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="admin-main-wrapper">
+      <!-- Topbar Header -->
+      <header class="admin-topbar">
+        <div class="topbar-left">
+          <button type="button" id="btn-sidebar-toggle" class="topbar-icon-btn" aria-label="Toggle Sidebar">
+            <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
+          </button>
+          <div class="topbar-search-frame">
+            <i data-lucide="search" class="topbar-search-icon" style="width: 16px; height: 16px;"></i>
+            <input type="text" id="global-admin-search" placeholder="Cari mahasiswa, mata kuliah, NIM...">
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Dark Mode Toggle -->
+          <button type="button" id="btn-toggle-dark-mode" class="topbar-icon-btn" title="Ganti Mode Gelap/Terang">
+            <i data-lucide="moon" style="width: 17px; height: 17px;"></i>
+          </button>
+
+          <!-- Notification Bell -->
+          <div style="position: relative;">
+            <button type="button" id="btn-open-notifications" class="topbar-icon-btn" title="Pusat Notifikasi">
+              <i data-lucide="bell" style="width: 17px; height: 17px;"></i>
+              <span id="notif-badge-count" class="topbar-notif-badge hidden">0</span>
+            </button>
+            <div id="notif-dropdown-list" class="hidden" style="position: absolute; right: 0; top: 48px; width: 320px; background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border-color); box-shadow: var(--shadow-xl); z-index: 100; max-height: 400px; overflow-y: auto;">
+              <!-- Items rendered by UI -->
+            </div>
+          </div>
+
+          <!-- Admin User Chip -->
+          <div style="display: flex; align-items: center; gap: 10px; margin-left: 8px;">
+            <div style="text-align: right;" class="hidden sm:block">
+              <div id="topbar-admin-name" style="font-size: 13px; font-weight: 700; color: var(--text-main); line-height: 1.2;">Admin UPNVJ</div>
+              <div id="topbar-admin-role" style="font-size: 11px; color: var(--text-muted);">Superadmin</div>
+            </div>
+            <button type="button" id="btn-admin-logout" class="topbar-icon-btn" title="Keluar dari Admin Panel" style="color: #ef4444;">
+              <i data-lucide="log-out" style="width: 16px; height: 16px;"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Pages View Body -->
+      <main class="admin-page-container">
+
+        <!-- ==================================================================
+             VIEW: DASHBOARD
+             ================================================================== -->
+        <div id="view-dashboard" class="admin-page-view">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Dashboard</span>
+          </div>
+
+          <div class="stats-cards-grid">
+            <div class="card-stat">
+              <div>
+                <div class="stat-title">Total Mahasiswa</div>
+                <div id="stat-total-mahasiswa" class="stat-value">0</div>
+              </div>
+              <div class="stat-icon-circle" style="background: #e0f2fe; color: #0284c7;">
+                <i data-lucide="users" style="width: 22px; height: 22px;"></i>
+              </div>
+            </div>
+
+            <div class="card-stat">
+              <div>
+                <div class="stat-title">Kehadiran Hari Ini</div>
+                <div id="stat-kehadiran-hari-ini" class="stat-value">0</div>
+              </div>
+              <div class="stat-icon-circle" style="background: #d1fae5; color: #059669;">
+                <i data-lucide="check-circle" style="width: 22px; height: 22px;"></i>
+              </div>
+            </div>
+
+            <div class="card-stat">
+              <div>
+                <div class="stat-title">Persen Kehadiran</div>
+                <div id="stat-persen-kehadiran" class="stat-value">0%</div>
+              </div>
+              <div class="stat-icon-circle" style="background: #fef3c7; color: #d97706;">
+                <i data-lucide="percent" style="width: 22px; height: 22px;"></i>
+              </div>
+            </div>
+
+            <div class="card-stat">
+              <div>
+                <div class="stat-title">Sesi Sedang Dibuka</div>
+                <div id="stat-sesi-aktif" class="stat-value">0</div>
+              </div>
+              <div class="stat-icon-circle" style="background: #ede9fe; color: #7c3aed;">
+                <i data-lucide="play-circle" style="width: 22px; height: 22px;"></i>
+              </div>
+            </div>
+
+            <div class="card-stat">
+              <div>
+                <div class="stat-title">Izin / Sakit Menunggu</div>
+                <div id="stat-izin-menunggu" class="stat-value">0</div>
+              </div>
+              <div class="stat-icon-circle" style="background: #fee2e2; color: #dc2626;">
+                <i data-lucide="clock" style="width: 22px; height: 22px;"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px;">
+            <div class="card-portal">
+              <div class="card-portal-header">
+                <h3 class="card-portal-title">Status Presensi Hari Ini</h3>
+              </div>
+              <div style="height: 220px; position: relative;">
+                <canvas id="chart-status-kehadiran"></canvas>
+              </div>
+            </div>
+
+            <div class="card-portal">
+              <div class="card-portal-header">
+                <h3 class="card-portal-title">Metode Presensi (Scan vs Manual)</h3>
+              </div>
+              <div style="height: 220px; position: relative;">
+                <canvas id="chart-metode-absen"></canvas>
+              </div>
+            </div>
+
+            <div class="card-portal">
+              <div class="card-portal-header">
+                <h3 class="card-portal-title">Presensi per Fakultas</h3>
+              </div>
+              <div style="height: 220px; position: relative;">
+                <canvas id="chart-fakultas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Feed & Recent -->
+          <div class="card-portal">
+            <div class="card-portal-header">
+              <h3 class="card-portal-title">Presensi Terbaru (Live Feed)</h3>
+            </div>
+            <div id="dashboard-live-feed" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Live feed items -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: MAHASISWA
+             ================================================================== -->
+        <div id="view-mahasiswa" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Data Mahasiswa</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; flex: 1;">
+                <input type="text" id="filter-mhs-search" class="form-input" style="max-width: 240px;" placeholder="Cari Nama / NIM / Email...">
+                <select id="filter-mhs-fakultas" class="form-select" style="max-width: 180px;"></select>
+                <select id="filter-mhs-prodi" class="form-select" style="max-width: 200px;">
+                  <option value="all">Semua Program Studi</option>
+                </select>
+                <select id="filter-mhs-status" class="form-select" style="max-width: 140px;">
+                  <option value="all">Semua Status</option>
+                  <option value="active">Aktif</option>
+                  <option value="inactive">Nonaktif</option>
+                </select>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button type="button" id="btn-export-mahasiswa" class="btn-portal btn-secondary">
+                  <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                  <span>Ekspor Excel</span>
+                </button>
+                <button type="button" id="btn-import-mahasiswa" class="btn-portal btn-secondary">
+                  <i data-lucide="upload" style="width: 15px; height: 15px;"></i>
+                  <span>Import Excel</span>
+                </button>
+                <button type="button" id="btn-add-mahasiswa" class="btn-portal btn-primary">
+                  <i data-lucide="user-plus" style="width: 15px; height: 15px;"></i>
+                  <span>Tambah Mahasiswa</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Batch Actions Bar -->
+            <div id="batch-actions-bar" class="hidden" style="margin-top: 16px; padding: 12px 16px; background: var(--bg-app); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <span id="batch-selected-count" style="font-size: 13px; font-weight: 700; color: var(--primary-navy);">0 mahasiswa terpilih</span>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" id="btn-batch-activate" class="btn-portal btn-secondary btn-sm">Aktifkan</button>
+                <button type="button" id="btn-batch-deactivate" class="btn-portal btn-secondary btn-sm">Nonaktifkan</button>
+                <button type="button" id="btn-batch-delete" class="btn-portal btn-danger btn-sm">Hapus Terpilih</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th style="width: 44px; text-align: center;">
+                    <input type="checkbox" id="check-all-students" class="form-checkbox">
+                  </th>
+                  <th>Mahasiswa</th>
+                  <th>NIM</th>
+                  <th>Program Studi</th>
+                  <th>T.A. / Kelas</th>
+                  <th>Status Akun</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-mahasiswa-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: MATA KULIAH
+             ================================================================== -->
+        <div id="view-matakuliah" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Mata Kuliah</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-portal-title">Jadwal & Kurikulum Perkuliahan</h3>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="btn-export-courses" class="btn-portal btn-secondary">
+                <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                <span>Ekspor Excel</span>
+              </button>
+              <button type="button" id="btn-add-course" class="btn-portal btn-primary">
+                <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+                <span>Tambah Mata Kuliah</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th>Kode MK</th>
+                  <th>Nama Mata Kuliah</th>
+                  <th>Program Studi</th>
+                  <th>Dosen Pengampu</th>
+                  <th>Jadwal & Ruang</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-courses-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: SESI PERKULIAHAN
+             ================================================================== -->
+        <div id="view-sesi" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Sesi Perkuliahan</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+            <div>
+              <h3 class="card-portal-title">Pertemuan Perkuliahan & Presensi Real-Time</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Buka presensi kelas untuk mengaktifkan kode sesi dan QR dinamis 30 detik.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="btn-create-recurring-sessions" class="btn-portal btn-secondary">
+                <i data-lucide="repeat" style="width: 15px; height: 15px;"></i>
+                <span>Generate 16 Pertemuan</span>
+              </button>
+              <button type="button" id="btn-create-session" class="btn-portal btn-primary">
+                <i data-lucide="plus-circle" style="width: 15px; height: 15px;"></i>
+                <span>Buat Sesi Pertemuan</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="sessions-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px;"></div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: DATA PRESENSI
+             ================================================================== -->
+        <div id="view-absensi" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Data Presensi</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; flex: 1;">
+                <input type="date" id="filter-abs-start-date" class="form-input" style="max-width: 160px;" title="Tanggal Mulai">
+                <input type="date" id="filter-abs-end-date" class="form-input" style="max-width: 160px;" title="Tanggal Selesai">
+                <select id="filter-abs-fakultas" class="form-select" style="max-width: 180px;"></select>
+                <select id="filter-abs-prodi" class="form-select" style="max-width: 200px;">
+                  <option value="all">Semua Program Studi</option>
+                </select>
+                <select id="filter-abs-status" class="form-select" style="max-width: 140px;">
+                  <option value="all">Semua Status</option>
+                  <option value="Hadir">Hadir</option>
+                  <option value="Terlambat">Terlambat</option>
+                  <option value="Izin">Izin</option>
+                  <option value="Sakit">Sakit</option>
+                  <option value="Alpa">Alpa</option>
+                </select>
+                <input type="text" id="filter-abs-search" class="form-input" style="max-width: 200px;" placeholder="Cari NIM / Nama...">
+              </div>
+
+              <button type="button" id="btn-export-absensi" class="btn-portal btn-secondary">
+                <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                <span>Unduh Rekap Excel</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th>Tanggal & Jam</th>
+                  <th>NIM</th>
+                  <th>Nama Mahasiswa</th>
+                  <th>Mata Kuliah</th>
+                  <th>Metode</th>
+                  <th>Status</th>
+                  <th>Keterangan</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-absensi-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: SCANNER KIOSK
+             ================================================================== -->
+        <div id="view-scanner" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Scanner Kiosk</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+            <div class="card-portal">
+              <h3 class="card-portal-title" style="margin-bottom: 12px;">Pemindai Barcode / QR KTM Mahasiswa</h3>
+              
+              <div class="form-group">
+                <label class="form-label">Pilih Sesi Kelas Aktif Saat Ini:</label>
+                <select id="scanner-session-select" class="form-select"></select>
+                <div id="scanner-session-hint" style="font-size: 11px; margin-top: 6px;"></div>
+              </div>
+
+              <!-- Viewport Kamera Scanner -->
+              <div style="position: relative; width: 100%; border-radius: var(--radius-lg); overflow: hidden; background: #07172c; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                <div id="admin-scanner-viewport" style="width: 100%; height: 100%;"></div>
+                <div id="scanner-idle-badge" style="position: absolute; text-align: center; color: #ffffff;">
+                  <i data-lucide="camera" style="width: 44px; height: 44px; margin: 0 auto 8px; opacity: 0.6;"></i>
+                  <div style="font-size: 13px; font-weight: 700;">Kamera Scanner Standby</div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 14px;">
+                <button type="button" id="btn-start-admin-scanner" class="btn-portal btn-primary" style="flex: 1;">
+                  <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+                  <span>Nyalakan Kamera</span>
+                </button>
+                <button type="button" id="btn-stop-admin-scanner" class="btn-portal btn-secondary hidden" style="flex: 1;">
+                  <i data-lucide="square" style="width: 16px; height: 16px;"></i>
+                  <span>Hentikan Kamera</span>
+                </button>
+              </div>
+
+              <!-- Flash Card Result Overlay -->
+              <div id="scanner-result-overlay" class="scanner-result-overlay hidden"></div>
+
+              <!-- Input Cadangan Manual NIM / USB Scanner -->
+              <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                <form id="form-scanner-manual-nim" style="display: flex; gap: 8px;">
+                  <input type="text" id="scanner-manual-nim-input" class="form-input font-mono" placeholder="Ketik NIM atau Scan Barcode USB..." maxlength="10">
+                  <button type="submit" class="btn-portal btn-secondary">Presensikan</button>
+                </form>
+                <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+                  Mendukung alat barcode scanner USB fisik (tekan trigger scanner saat kursor berada di halaman ini).
+                </p>
+              </div>
+            </div>
+
+            <!-- Riwayat Scan Terakhir -->
+            <div class="card-portal">
+              <h3 class="card-portal-title" style="margin-bottom: 12px;">Antrean Scan Terakhir</h3>
+              <div id="scanner-recent-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="padding: 32px; text-align: center; color: var(--slate-400);">
+                  <span>Belum ada mahasiswa yang dipindai pada sesi ini.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: PENGAJUAN IZIN
+             ================================================================== -->
+        <div id="view-izin" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Pengajuan Izin & Sakit</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-portal-title">Daftar Pengajuan Surat Izin & Sakit</h3>
+            <select id="filter-izin-status" class="form-select" style="max-width: 180px;">
+              <option value="all">Semua Status</option>
+              <option value="Menunggu" selected>Menunggu Verifikasi</option>
+              <option value="Disetujui">Disetujui</option>
+              <option value="Ditolak">Ditolak</option>
+            </select>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th>Tanggal Pengajuan</th>
+                  <th>NIM</th>
+                  <th>Nama Mahasiswa</th>
+                  <th>Jenis</th>
+                  <th>Mata Kuliah</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-izin-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: LAPORAN & REKAP
+             ================================================================== -->
+        <div id="view-laporan" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Rekapitulasi Matriks & Laporan</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px;">
+              <div style="flex: 1; max-width: 480px;">
+                <select id="laporan-course-select" class="form-select"></select>
+                <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="filter-laporan-uas-threshold" class="form-checkbox">
+                  <label for="filter-laporan-uas-threshold" style="font-size: 12px; font-weight: 600; color: #dc2626; cursor: pointer;">
+                    Hanya Tampilkan Mahasiswa Gugur UAS (Kehadiran &lt; 75%)
+                  </label>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button type="button" id="btn-export-laporan-excel" class="btn-portal btn-secondary">
+                  <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                  <span>Ekspor Excel</span>
+                </button>
+                <button type="button" id="btn-export-laporan-pdf" class="btn-portal btn-primary">
+                  <i data-lucide="file-text" style="width: 15px; height: 15px;"></i>
+                  <span>Unduh PDF Resmi</span>
+                </button>
+                <button type="button" id="btn-print-laporan" class="btn-portal btn-secondary">
+                  <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
+                  <span>Cetak</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal" style="font-size: 11px;">
+              <thead>
+                <tr>
+                  <th style="width: 36px; text-align: center;">No</th>
+                  <th>NIM</th>
+                  <th>Nama Mahasiswa</th>
+                  <!-- Pertemuan 1 - 16 -->
+                  <th class="text-center">P1</th><th class="text-center">P2</th><th class="text-center">P3</th><th class="text-center">P4</th>
+                  <th class="text-center">P5</th><th class="text-center">P6</th><th class="text-center">P7</th><th class="text-center">P8</th>
+                  <th class="text-center">P9</th><th class="text-center">P10</th><th class="text-center">P11</th><th class="text-center">P12</th>
+                  <th class="text-center">P13</th><th class="text-center">P14</th><th class="text-center">P15</th><th class="text-center">P16</th>
+                  <th class="text-center">Total</th>
+                  <th class="text-center">%</th>
+                  <th class="text-center">Syarat UAS</th>
+                </tr>
+              </thead>
+              <tbody id="table-matrix-body">
+                <tr>
+                  <td colspan="21" style="padding: 36px; text-align: center; color: var(--slate-400);">
+                    Silakan pilih mata kuliah di atas untuk menghasilkan matriks kehadiran pertemuan 1 s/d 16.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: PENGUMUMAN
+             ================================================================== -->
+        <div id="view-pengumuman" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Pengumuman</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-portal-title">Pengumuman & Siaran Informasi Kampus</h3>
+            <button type="button" id="btn-add-announcement" class="btn-portal btn-primary">
+              <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+              <span>Buat Pengumuman Baru</span>
+            </button>
+          </div>
+
+          <div id="announcements-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px;"></div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: KELOLA ADMIN & DOSEN (SUPERADMIN)
+             ================================================================== -->
+        <div id="view-admin" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Superadmin</span> <span>/</span> <span>Kelola Administrator & Dosen</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h3 class="card-portal-title">Daftar Pengguna Hak Akses Sistem</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Penambahan akun baru menggunakan Secondary Firebase App agar sesi Anda tidak terputus.</p>
+            </div>
+            <button type="button" id="btn-add-admin-account" class="btn-portal btn-primary">
+              <i data-lucide="user-plus" style="width: 15px; height: 15px;"></i>
+              <span>Tambah Akun Baru</span>
+            </button>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th>Nama & Email</th>
+                  <th>Peran (Role)</th>
+                  <th>Cakupan Wewenang</th>
+                  <th>Status</th>
+                  <th>Login Terakhir</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-admins-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: AUDIT LOG (SUPERADMIN)
+             ================================================================== -->
+        <div id="view-auditlog" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Superadmin</span> <span>/</span> <span>Audit Log Keamanan</span>
+          </div>
+
+          <div class="card-portal" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <select id="filter-audit-action" class="form-select" style="max-width: 200px;">
+                <option value="all">Semua Jenis Aktivitas</option>
+                <option value="LOGIN">Login</option>
+                <option value="LOGOUT">Logout</option>
+                <option value="DELETE_STUDENT">Hapus Mahasiswa</option>
+                <option value="CLOSE_SESSION">Tutup Sesi & Alpa</option>
+                <option value="APPROVE_LEAVE">Persetujuan Izin</option>
+              </select>
+            </div>
+            <button type="button" id="btn-export-auditlog" class="btn-portal btn-secondary">
+              <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+              <span>Ekspor Audit Log</span>
+            </button>
+          </div>
+
+          <div class="table-responsive-wrapper">
+            <table class="table-portal">
+              <thead>
+                <tr>
+                  <th>Waktu (WIB)</th>
+                  <th>Administrator</th>
+                  <th>Tindakan / Aksi</th>
+                  <th>Target Entitas</th>
+                  <th>Info Perangkat</th>
+                  <th style="text-align: right;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="table-auditlog-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: PENGATURAN SISTEM (SUPERADMIN)
+             ================================================================== -->
+        <div id="view-pengaturan" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Superadmin</span> <span>/</span> <span>Pengaturan Sistem</span>
+          </div>
+
+          <form id="form-system-settings">
+            <div class="card-portal" style="margin-bottom: 20px;">
+              <h3 class="card-portal-title" style="margin-bottom: 16px;">Konfigurasi Akademik & Presensi</h3>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Nama Institusi</label>
+                  <input type="text" id="set-institution-name" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Tahun Akademik Aktif</label>
+                  <input type="text" id="set-academic-year" class="form-input" placeholder="2026/2027">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Semester Berjalan</label>
+                  <select id="set-semester" class="form-select">
+                    <option value="Ganjil">Ganjil</option>
+                    <option value="Genap">Genap</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Batas Toleransi Terlambat (Menit)</label>
+                  <input type="number" id="set-late-tolerance" class="form-input" min="0" max="120">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Ambang Minimal Syarat UAS (%)</label>
+                  <input type="number" id="set-min-attendance" class="form-input" min="0" max="100">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Jam Operasional Mulai</label>
+                  <input type="time" id="set-hours-start" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Jam Operasional Selesai</label>
+                  <input type="time" id="set-hours-end" class="form-input">
+                </div>
+              </div>
+
+              <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <input type="checkbox" id="set-allow-manual" class="form-checkbox">
+                  <span>Izinkan Mahasiswa Melakukan Presensi Manual (Input NIM) Jika Kamera Bermasalah</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <input type="checkbox" id="set-require-session" class="form-checkbox">
+                  <span>Wajib Ada Sesi Perkuliahan Dibuka untuk Menerima Absensi Mahasiswa</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Geofencing Radius Kampus -->
+            <div class="card-portal" style="margin-bottom: 20px;">
+              <h3 class="card-portal-title" style="margin-bottom: 12px;">Geofencing Presensi Kampus UPNVJ (Opsional)</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+                Jika diaktifkan, peramban mahasiswa akan memvalidasi koordinat GPS sebelum mencatat kehadiran.
+              </p>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 16px; cursor: pointer;">
+                <input type="checkbox" id="set-geo-enabled" class="form-checkbox">
+                <span>Aktifkan Validasi Geofencing Lokasi</span>
+              </label>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Latitude Kampus (Pondok Labu)</label>
+                  <input type="number" step="any" id="set-geo-lat" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Longitude Kampus (Pondok Labu)</label>
+                  <input type="number" step="any" id="set-geo-lng" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Radius Izin Presensi (Meter)</label>
+                  <input type="number" id="set-geo-radius" class="form-input">
+                </div>
+              </div>
+            </div>
+
+            <!-- Maintenance Mode -->
+            <div class="card-portal" style="margin-bottom: 20px;">
+              <h3 class="card-portal-title" style="margin-bottom: 12px;">Mode Pemeliharaan (Maintenance Mode)</h3>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 12px; cursor: pointer;">
+                <input type="checkbox" id="set-maintenance-mode" class="form-checkbox">
+                <span style="color: #dc2626;">Kunci Akses Presensi Mahasiswa untuk Pemeliharaan Berkala</span>
+              </label>
+              <div class="form-group">
+                <label class="form-label">Pesan yang Ditampilkan ke Mahasiswa:</label>
+                <textarea id="set-maintenance-msg" class="form-textarea" rows="2"></textarea>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-save-settings" class="btn-portal btn-primary" style="margin-bottom: 24px;">
+              <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+              <span>Simpan Pengaturan Sistem</span>
+            </button>
+          </form>
+
+          <!-- Backup & Tindakan Kritis -->
+          <div class="card-portal" style="border: 1px solid #fed7aa;">
+            <h3 class="card-portal-title" style="color: #9a3412; margin-bottom: 8px;">Backup Data & Arsip Semester</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Unduh salinan JSON lengkap atau arsipkan presensi semester lama.</p>
+            
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px;">
+              <button type="button" class="btn-portal btn-secondary btn-backup-col" data-collection="students">Backup Mahasiswa (JSON)</button>
+              <button type="button" class="btn-portal btn-secondary btn-backup-col" data-collection="courses">Backup Mata Kuliah (JSON)</button>
+              <button type="button" class="btn-portal btn-secondary btn-backup-col" data-collection="sessions">Backup Sesi (JSON)</button>
+              <button type="button" class="btn-portal btn-secondary btn-backup-col" data-collection="attendance">Backup Presensi (JSON)</button>
+              <button type="button" id="btn-archive-semester" class="btn-portal btn-secondary">Arsipkan Presensi Semester</button>
+            </div>
+
+            <div style="padding-top: 16px; border-top: 1px solid #fee2e2;">
+              <h4 style="font-size: 13px; font-weight: 800; color: #dc2626; margin-bottom: 4px;">Zona Berbahaya: Reset Presensi</h4>
+              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Tindakan ini menghapus seluruh rekaman kehadiran mahasiswa dan mewajibkan pengetikan kata kunci konfirmasi "HAPUS".</p>
+              <button type="button" id="btn-reset-attendance-data" class="btn-portal btn-danger btn-sm">
+                <i data-lucide="alert-triangle" style="width: 14px; height: 14px;"></i>
+                <span>Reset Total Data Presensi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: PROFIL ADMIN
+             ================================================================== -->
+        <div id="view-profil" class="admin-page-view hidden">
+          <div class="admin-breadcrumbs">
+            <span>Admin</span> <span>/</span> <span>Profil Akun</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+            <div class="card-portal">
+              <h3 class="card-portal-title" style="margin-bottom: 20px;">Biodata Pengelola</h3>
+              
+              <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
+                <div id="admin-profile-avatar-display" style="width: 68px; height: 68px; border-radius: 9999px; background: var(--primary-navy); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; overflow: hidden;">
+                  A
+                </div>
+                <div>
+                  <label for="admin-photo-input" class="btn-portal btn-secondary btn-sm" style="cursor: pointer;">
+                    <i data-lucide="camera" style="width: 14px; height: 14px;"></i>
+                    <span>Ubah Foto Profil</span>
+                  </label>
+                  <input type="file" id="admin-photo-input" accept="image/*" class="hidden">
+                  <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Otomatis dipotong & dikompresi.</div>
+                </div>
+              </div>
+
+              <form id="form-admin-biodata">
+                <div class="form-group">
+                  <label class="form-label">Nama Lengkap</label>
+                  <input type="text" id="prof-admin-name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email Terdaftar</label>
+                  <input type="email" id="prof-admin-email" class="form-input" disabled>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Peran (Role)</label>
+                  <input type="text" id="prof-admin-role" class="form-input" disabled>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Cakupan Wewenang Fakultas/Prodi</label>
+                  <input type="text" id="prof-admin-scope" class="form-input" disabled>
+                </div>
+                <button type="submit" id="btn-save-admin-bio" class="btn-portal btn-primary">Simpan Biodata</button>
+              </form>
+            </div>
+
+            <div class="card-portal">
+              <h3 class="card-portal-title" style="margin-bottom: 16px;">Ubah Kata Sandi</h3>
+              <form id="form-admin-change-password">
+                <div class="form-group">
+                  <label class="form-label">Kata Sandi Saat Ini</label>
+                  <input type="password" id="prof-current-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Kata Sandi Baru (Min. 6 Karakter)</label>
+                  <input type="password" id="prof-new-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Ulangi Kata Sandi Baru</label>
+                  <input type="password" id="prof-confirm-password" class="form-input" required>
+                </div>
+                <button type="submit" id="btn-submit-change-password" class="btn-portal btn-primary">Ubah Kata Sandi</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             VIEW: AKSES DITOLAK & 404
+             ================================================================== -->
+        <div id="view-akses-ditolak" class="admin-page-view hidden">
+          <div style="padding: 64px 20px; text-align: center;">
+            <i data-lucide="shield-alert" style="width: 56px; height: 56px; color: #dc2626; margin: 0 auto 16px;"></i>
+            <h2 style="font-size: 22px; font-weight: 800; color: var(--text-main);">Hak Akses Tidak Mencukupi</h2>
+            <p style="font-size: 14px; color: var(--text-muted); max-width: 440px; margin: 8px auto 20px;">
+              Peran akun Anda tidak memiliki wewenang untuk membuka modul ini. Silakan hubungi Superadmin jika Anda memerlukan izin tambahan.
+            </p>
+            <a href="#/dashboard" class="btn-portal btn-primary">Kembali ke Dashboard</a>
+          </div>
+        </div>
+
+        <div id="view-404" class="admin-page-view hidden">
+          <div style="padding: 64px 20px; text-align: center;">
+            <h1 style="font-size: 54px; font-weight: 800; color: var(--primary-navy); margin: 0;">404</h1>
+            <h3 style="font-size: 18px; font-weight: 700; margin: 8px 0 16px;">Halaman Tidak Ditemukan</h3>
+            <a href="#/dashboard" class="btn-portal btn-primary">Kembali ke Dashboard</a>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODALS, DRAWER & PRESENTATION OVERLAYS
+       ========================================================================== -->
+
+  <!-- Modal Konfirmasi Umum & Destruktif (HAPUS) -->
+  <div id="admin-confirm-modal" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 id="confirm-title" class="modal-title">Konfirmasi Tindakan</h4>
+        <button type="button" id="btn-confirm-cancel" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message" style="font-size: 13px; color: var(--text-muted); line-height: 1.5;"></p>
+        <div id="confirm-secure-input-section" class="hidden" style="margin-top: 16px; padding: 14px; background: #fee2e2; border-radius: 10px;">
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #991b1b; margin-bottom: 6px;">
+            Ketik kata "<span id="confirm-keyword-target">HAPUS</span>" untuk melanjutkan:
+          </label>
+          <input type="text" id="confirm-secure-keyword" class="form-input" style="border-color: #ef4444;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="confirm-cancel-action" class="btn-portal btn-secondary" onclick="document.getElementById('admin-confirm-modal').classList.add('hidden')">Batal</button>
+        <button type="button" id="btn-confirm-action" class="btn-portal btn-primary">Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Progress Bar Operasi Massal -->
+  <div id="admin-progress-modal" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card" style="max-width: 420px; text-align: center; padding: 28px;">
+      <h4 id="progress-modal-title" style="font-size: 16px; font-weight: 800; color: var(--text-main); margin-bottom: 12px;">Memproses Operasi...</h4>
+      <div style="width: 100%; height: 10px; background: var(--border-color); border-radius: 9999px; overflow: hidden; margin-bottom: 12px;">
+        <div id="progress-modal-bar" style="height: 100%; width: 0%; background: var(--primary-navy); transition: width 0.15s ease;"></div>
+      </div>
+      <div id="progress-modal-percent" style="font-size: 20px; font-weight: 800; color: var(--primary-navy);">0%</div>
+      <div id="progress-modal-status" style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Menyiapkan data...</div>
+    </div>
+  </div>
+
+  <!-- Drawer Slide-in Panel -->
+  <div id="admin-drawer-backdrop" class="admin-drawer-backdrop hidden"></div>
+  <aside id="admin-drawer-container" class="admin-drawer-container hidden">
+    <div class="drawer-header">
+      <h3 id="admin-drawer-title" style="font-size: 15px; font-weight: 800; color: var(--text-main);">Detail Entitas</h3>
+      <button type="button" id="btn-close-drawer" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+        <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+      </button>
+    </div>
+    <div id="admin-drawer-content" class="drawer-body"></div>
+    <div id="admin-drawer-footer" class="drawer-footer hidden"></div>
+  </aside>
+
+  <!-- Modal Mode Presentasi / Proyektor Fullscreen -->
+  <div id="modal-projector-mode" class="projector-fullscreen-overlay hidden">
+    <div style="position: absolute; top: 24px; right: 28px;">
+      <button type="button" id="btn-close-projector-mode" class="btn-portal btn-secondary" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.2);">
+        <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+        <span>Tutup Layar Proyektor</span>
+      </button>
+    </div>
+    <div style="text-align: center; max-width: 600px;">
+      <img src="../assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 64px; height: 64px; margin: 0 auto 12px; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onerror="this.onerror=null; this.src='assets/logo-upnvj.png';">
+      <h2 id="projector-course-title" style="font-size: 26px; font-weight: 800; color: #ffffff; font-family: var(--font-heading);">Mata Kuliah</h2>
+      <p id="projector-dosen-name" style="font-size: 14px; color: #cbd5e1; margin-top: 4px;">Dosen Pengampu</p>
+
+      <!-- Giant Dynamic QR Code -->
+      <div class="projector-qr-frame">
+        <div id="projector-qr-canvas" style="display: flex; justify-content: center;"></div>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 12px; backdrop-filter: blur(8px); display: inline-flex; align-items: center; gap: 20px;">
+        <div>Kode Presensi 6 Digit: <strong id="projector-session-code" class="font-mono text-gold" style="font-size: 24px; letter-spacing: 0.1em;">------</strong></div>
+        <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 20px;">
+          Tercatat Hadir: <strong id="projector-present-count" class="text-gold" style="font-size: 24px;">0</strong> Mahasiswa
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #94a3b8; margin-top: 14px;">
+        QR code diperbarui otomatis tiap 30 detik untuk mencegah titip absen.
+      </p>
+    </div>
+  </div>
+
+  <!-- Modal Tambah Mahasiswa -->
+  <div id="modal-add-student" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Tambah Mahasiswa Baru</h4>
+        <button type="button" onclick="document.getElementById('modal-add-student').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-add-student">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nama Lengkap Mahasiswa *</label>
+            <input type="text" id="add-mhs-nama" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">NIM (10 Digit Angka Unik) *</label>
+            <input type="text" id="add-mhs-nim" class="form-input font-mono" maxlength="10" required placeholder="Contoh: 2110511001">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fakultas *</label>
+            <select id="add-mhs-fakultas" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Program Studi *</label>
+            <select id="add-mhs-prodi" class="form-select" required></select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">Angkatan</label>
+              <input type="text" id="add-mhs-angkatan" class="form-input" value="2024">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Semester</label>
+              <input type="number" id="add-mhs-semester" class="form-input" value="1" min="1" max="14">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kelas</label>
+              <input type="text" id="add-mhs-kelas" class="form-input" value="A">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-add-student').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-add-mhs" class="btn-portal btn-primary">Simpan Mahasiswa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Import Excel Mahasiswa -->
+  <div id="modal-import-student" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Import Data Mahasiswa dari Excel / CSV</h4>
+        <button type="button" onclick="document.getElementById('modal-import-student').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+          Gunakan file spreadsheet (.xlsx / .csv) sesuai format kolom standar UPNVJ. Sistem akan memvalidasi keunikan NIM dan kesesuaian nama program studi resmi.
+        </p>
+        <button type="button" id="btn-download-import-template" class="btn-portal btn-secondary btn-sm" style="margin-bottom: 18px;">
+          <i data-lucide="file-spreadsheet" style="width: 14px; height: 14px;"></i>
+          <span>Unduh Template Excel Kosong</span>
+        </button>
+        <div class="form-group">
+          <label class="form-label">Pilih File Spreadsheet (.xlsx / .csv):</label>
+          <input type="file" id="import-student-file" accept=".xlsx, .xls, .csv" class="form-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-import-student').classList.add('hidden')">Batal</button>
+        <button type="button" id="btn-process-import" class="btn-portal btn-primary">Mulai Proses Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Koreksi Status Presensi -->
+  <div id="modal-correct-attendance" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Koreksi Status Presensi</h4>
+        <button type="button" onclick="document.getElementById('modal-correct-attendance').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-correct-attendance">
+        <div class="modal-body">
+          <div style="background: var(--bg-app); padding: 12px; border-radius: var(--radius-md); margin-bottom: 16px; font-size: 12px;">
+            <div><strong>Mahasiswa:</strong> <span id="correct-att-mhs">-</span></div>
+            <div><strong>Mata Kuliah:</strong> <span id="correct-att-course">-</span></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status Presensi Baru *</label>
+            <select id="correct-att-status-select" class="form-select" required>
+              <option value="Hadir">Hadir</option>
+              <option value="Terlambat">Terlambat</option>
+              <option value="Izin">Izin</option>
+              <option value="Sakit">Sakit</option>
+              <option value="Alpa">Alpa</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alasan Koreksi (Wajib Dicatat untuk Jejak Audit) *</label>
+            <textarea id="correct-att-reason" class="form-textarea" rows="3" placeholder="Contoh: Mahasiswa hadir namun kamera smartphone rusak saat scan QR..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-correct-attendance').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-correction" class="btn-portal btn-primary">Simpan Koreksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Buat Sesi Perkuliahan -->
+  <div id="modal-create-session" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Buat Sesi Pertemuan Kelas</h4>
+        <button type="button" onclick="document.getElementById('modal-create-session').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-create-session">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Mata Kuliah *</label>
+            <select id="sesi-course-select" class="form-select" required></select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Pertemuan Ke- (1 s/d 16) *</label>
+              <input type="number" id="sesi-input-pertemuan" class="form-input" min="1" max="16" value="1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tanggal Pelaksanaan *</label>
+              <input type="date" id="sesi-input-tanggal" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jam Buka Presensi</label>
+              <input type="time" id="sesi-input-jambuka" class="form-input" value="08:00">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jam Tutup Presensi</label>
+              <input type="time" id="sesi-input-jamtutup" class="form-input" value="09:40">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Toleransi Terlambat (Menit)</label>
+              <input type="number" id="sesi-input-terlambat" class="form-input" value="15" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Metode yang Diizinkan</label>
+              <select id="sesi-input-metode" class="form-select">
+                <option value="keduanya">Scan & Manual</option>
+                <option value="scan">Hanya Scan QR</option>
+                <option value="manual">Hanya Manual</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Catatan Perkuliahan / Materi</label>
+            <textarea id="sesi-input-catatan" class="form-textarea" rows="2" placeholder="Topik bahasan pertemuan..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-create-session').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-create-session" class="btn-portal btn-primary">Simpan Sesi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Generate 16 Pertemuan Otomatis -->
+  <div id="modal-recurring-session" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Generate 16 Pertemuan Otomatis</h4>
+        <button type="button" onclick="document.getElementById('modal-recurring-session').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+          Sistem akan otomatis menjadwalkan 16 pertemuan mingguan berturut-turut untuk mata kuliah yang dipilih.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Pilih Mata Kuliah *</label>
+          <select id="recurring-course-select" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tanggal Pertemuan Pertama *</label>
+          <input type="date" id="recurring-start-date" class="form-input" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-recurring-session').classList.add('hidden')">Batal</button>
+        <button type="button" id="btn-submit-recurring-sessions" class="btn-portal btn-primary">Generate 16 Pertemuan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Tambah Mata Kuliah -->
+  <div id="modal-add-course" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Tambah Mata Kuliah</h4>
+        <button type="button" onclick="document.getElementById('modal-add-course').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-add-course">
+        <div class="modal-body">
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Kode MK *</label>
+              <input type="text" id="course-input-kode" class="form-input font-mono" placeholder="UPN-101" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nama Mata Kuliah *</label>
+              <input type="text" id="course-input-nama" class="form-input" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Fakultas *</label>
+              <select id="course-input-fakultas" class="form-select" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Program Studi *</label>
+              <select id="course-input-prodi" class="form-select" required></select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">SKS</label>
+              <input type="number" id="course-input-sks" class="form-input" value="2" min="1" max="6">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Semester</label>
+              <input type="number" id="course-input-semester" class="form-input" value="1" min="1" max="14">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kelas</label>
+              <input type="text" id="course-input-kelas" class="form-input" value="A">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dosen Pengampu</label>
+            <input type="text" id="course-input-dosen" class="form-input" placeholder="Nama Lengkap Dosen & Gelar">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">Hari</label>
+              <select id="course-input-hari" class="form-select">
+                <option value="Senin">Senin</option><option value="Selasa">Selasa</option>
+                <option value="Rabu">Rabu</option><option value="Kamis">Kamis</option>
+                <option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jam Mulai</label>
+              <input type="time" id="course-input-jammulai" class="form-input" value="08:00">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jam Selesai</label>
+              <input type="time" id="course-input-jamselesai" class="form-input" value="09:40">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ruang Kelas</label>
+            <input type="text" id="course-input-ruangan" class="form-input" value="Gd. Wahidin 302">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-add-course').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-add-course" class="btn-portal btn-primary">Simpan Mata Kuliah</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Buat Pengumuman -->
+  <div id="modal-add-announcement" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Buat Pengumuman Mahasiswa</h4>
+        <button type="button" onclick="document.getElementById('modal-add-announcement').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-add-announcement">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Judul Pengumuman *</label>
+            <input type="text" id="ann-input-judul" class="form-input" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Tipe Prioritas</label>
+              <select id="ann-input-tipe" class="form-select">
+                <option value="info">Informasi (Biru)</option>
+                <option value="penting">Penting (Kuning)</option>
+                <option value="darurat">Darurat / Mendesak (Merah)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Penerima</label>
+              <select id="ann-input-target" class="form-select">
+                <option value="semua">Semua Mahasiswa Kampus</option>
+                <option value="fakultas">Sesuai Fakultas</option>
+                <option value="prodi">Sesuai Program Studi</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Mulai Tayang</label>
+              <input type="date" id="ann-input-mulai" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Berakhir Tayang</label>
+              <input type="date" id="ann-input-berakhir" class="form-input" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Isi Pengumuman *</label>
+            <textarea id="ann-input-isi" class="form-textarea" rows="4" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-add-announcement').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-announcement" class="btn-portal btn-primary">Siarkan Pengumuman</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Tambah Akun Admin / Dosen (Superadmin Only) -->
+  <div id="modal-add-admin" class="admin-modal-backdrop hidden">
+    <div class="admin-modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title">Tambah Administrator / Dosen</h4>
+        <button type="button" onclick="document.getElementById('modal-add-admin').classList.add('hidden')" style="background: none; border: none; cursor: pointer; color: var(--text-light);">
+          <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+      </div>
+      <form id="form-add-admin">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nama Lengkap & Gelar *</label>
+            <input type="text" id="admin-input-nama" class="form-input" required placeholder="Contoh: Dr. Budi Santoso, M.Kom.">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alamat Email Institusi *</label>
+            <input type="email" id="admin-input-email" class="form-input" required placeholder="budi.santoso@upnvj.ac.id">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Peran (Role) *</label>
+            <select id="admin-input-role" class="form-select" required>
+              <option value="dosen">Dosen Pengampu (Hanya Kelas/Sesi Miliknya)</option>
+              <option value="admin_prodi">Admin Program Studi</option>
+              <option value="admin_fakultas">Admin Fakultas</option>
+              <option value="superadmin">Super Administrator (Akses Penuh)</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Fakultas</label>
+              <select id="admin-input-fakultas" class="form-select"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Program Studi</label>
+              <select id="admin-input-prodi" class="form-select">
+                <option value="">Semua Program Studi</option>
+              </select>
+            </div>
+          </div>
+          <div style="padding: 10px 14px; background: var(--bg-app); border-radius: var(--radius-sm); font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+            Kata sandi awal acak akan dibuatkan secara otomatis dan tautan reset kata sandi langsung dikirimkan ke alamat email tersebut agar pemilik akun dapat menentukan sandi pribadinya.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-portal btn-secondary" onclick="document.getElementById('modal-add-admin').classList.add('hidden')">Batal</button>
+          <button type="submit" id="btn-submit-add-admin" class="btn-portal btn-primary">Buat Akun Pengelola</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Entry Script Modular -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

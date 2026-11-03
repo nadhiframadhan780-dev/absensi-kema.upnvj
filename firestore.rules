@@ -7,40 +7,72 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function isInstitusi() {
+      return isSignedIn() && 
+        request.auth.token.email.matches('.*@mahasiswa\\.upnvj\\.ac\\.id$');
     }
 
-    // 1. Koleksi Profil Mahasiswa (mendukung 'students' dan 'mahasiswa')
+    // Pengecekan Admin Aktif di koleksi admins/{uid}
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.aktif == true;
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isAdmin() && adminData().role == 'superadmin';
+    }
+
+    function isFacultyAdmin(fac) {
+      return isAdmin() && (isSuperAdmin() || adminData().fakultas == fac);
+    }
+
+    function isProdiAdmin(fac, prod) {
+      return isAdmin() && (isSuperAdmin() || (adminData().fakultas == fac && adminData().prodi == prod));
+    }
+
+    function isDosen(dosenUid) {
+      return isAdmin() && (isSuperAdmin() || request.auth.uid == dosenUid);
+    }
+
+    // 1. Koleksi Profil Mahasiswa (students / mahasiswa)
     match /students/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(uid);
-      allow delete: if false;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow delete: if isSuperAdmin();
     }
 
     match /mahasiswa/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(uid);
-      allow delete: if false;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow delete: if isSuperAdmin();
     }
 
-    // 2. Koleksi Presensi / Kehadiran (mendukung 'attendance' dan 'absensi')
-    match /attendance/{attendanceId} {
-      allow read: if isSignedIn();
+    // 2. Koleksi Presensi / Kehadiran (attendance / absensi)
+    match /attendance/{docId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && (
-        request.resource.data.uid == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid
+        request.resource.data.uid == request.auth.uid || 
+        request.resource.data.userId == request.auth.uid || 
+        isAdmin()
       );
-      allow update, delete: if false;
+      allow update: if isAdmin(); // Mahasiswa dilarang keras mengubah data presensi
+      allow delete: if isSuperAdmin() || isAdmin();
     }
 
-    match /absensi/{attendanceId} {
-      allow read: if isSignedIn();
+    match /absensi/{docId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && (
-        request.resource.data.uid == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid
+        request.resource.data.uid == request.auth.uid || 
+        request.resource.data.userId == request.auth.uid || 
+        isAdmin()
       );
-      allow update, delete: if false;
+      allow update: if isAdmin();
+      allow delete: if isSuperAdmin() || isAdmin();
     }
 
     // 3. Index Publik Verifikasi NIM
@@ -49,9 +81,56 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // 4. Default fallback aman untuk pengguna terautentikasi
-    match /{document=**} {
-      allow read, write: if isSignedIn();
+    // 4. Koleksi Hak Akses Pengelola (admins/{uid})
+    match /admins/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // 5. Kurikulum Mata Kuliah (courses)
+    match /courses/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+      allow delete: if isSuperAdmin() || isFacultyAdmin(resource.data.fakultas);
+    }
+
+    // 6. Sesi Perkuliahan / Pertemuan (sessions)
+    match /sessions/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin();
+      allow delete: if isSuperAdmin() || isAdmin();
+    }
+
+    // 7. Pengajuan Izin & Sakit (leaveRequests)
+    match /leaveRequests/{id} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin(); // Hanya admin yang dapat menyetujui / menolak
+      allow delete: if isSuperAdmin();
+    }
+
+    // 8. Pengumuman Kampus (announcements)
+    match /announcements/{id} {
+      allow read: if isSignedIn();
+      allow write, delete: if isAdmin();
+    }
+
+    // 9. Pusat Notifikasi Admin (adminNotifications)
+    match /adminNotifications/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // 10. Audit Log Keamanan (auditLogs) - STRICTLY IMMUTABLE (Hanya Create & Read)
+    match /auditLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // Dilarang keras diedit atau dihapus siapapun
+    }
+
+    // 11. Pengaturan Sistem (settings/{docId})
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
   }
 }
