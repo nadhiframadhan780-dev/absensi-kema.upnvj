@@ -6,22 +6,21 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isUpnvjStudent() {
-      return isSignedIn() &&
-        request.auth.token.email.matches('.*@mahasiswa[.]upnvj[.]ac[.]id$');
+    // Foto profil mahasiswa
+    match /profile_photos/{uid}.jpg {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+                   && request.auth.uid == uid
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
     }
 
-    // Folder foto profil mahasiswa: profile_photos/{uid}.jpg
-    // - Hanya pemilik akun yang dapat mengunggah dan memperbarui
-    // - Maksimal ukuran file: 1 MB (1 * 1024 * 1024 bytes)
-    // - Tipe MIME wajib berupa gambar (image/*)
-    // - Read diizinkan bagi sesama mahasiswa UPNVJ yang terautentikasi
-    match /profile_photos/{uid}.jpg {
-      allow read: if isUpnvjStudent();
-      allow write: if isUpnvjStudent()
-                   && request.auth.uid == uid
-                   && request.resource.size < 1 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+    match /profile_photos/{allPaths=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }

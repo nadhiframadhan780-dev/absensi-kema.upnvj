@@ -2,55 +2,56 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions keamanan UPNVJ
+    // Helper functions autentikasi
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Wajib memiliki email berdomain @mahasiswa.upnvj.ac.id
-    function isUpnvjStudent() {
-      return isSignedIn() &&
-        request.auth.token.email.matches('.*@mahasiswa[.]upnvj[.]ac[.]id$');
-    }
-
-    // Memverifikasi kepemilikan dokumen (User ID pemilik)
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // 1. Koleksi Profil Mahasiswa (students/{uid})
-    // Mahasiswa hanya dapat membaca dan memperbarui data profilnya sendiri
+    // 1. Koleksi Profil Mahasiswa (mendukung 'students' dan 'mahasiswa')
     match /students/{uid} {
-      allow read: if isUpnvjStudent() && isOwner(uid);
-      allow create: if isUpnvjStudent() && isOwner(uid)
-                    && request.resource.data.uid == uid;
-      allow update: if isUpnvjStudent() && isOwner(uid)
-                    && request.resource.data.uid == uid;
-      allow delete: if false; // Profil mahasiswa dilarang dihapus sembarangan
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid);
+      allow delete: if false;
     }
 
-    // 2. Koleksi Presensi / Kehadiran (attendance/{attendanceId})
-    // - Create: hanya jika uid di payload sesuai request.auth.uid
-    // - Read: hanya record kehadiran milik mahasiswa yang bersangkutan
-    // - Update / Delete: Dilarang keras demi integritas rekam presensi
+    match /mahasiswa/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    // 2. Koleksi Presensi / Kehadiran (mendukung 'attendance' dan 'absensi')
     match /attendance/{attendanceId} {
-      allow create: if isUpnvjStudent() 
-                    && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.nim is string
-                    && request.resource.data.mataKuliah is string
-                    && request.resource.data.tanggal is string;
-      allow read: if isUpnvjStudent() 
-                  && resource.data.uid == request.auth.uid;
-      allow update: if false; // Rekam kehadiran tidak boleh diubah
-      allow delete: if false; // Rekam kehadiran tidak boleh dihapus
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        request.resource.data.uid == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if false;
     }
 
-    // 3. Index Publik Aman untuk Verifikasi NIM (nim_index/{nim})
-    // Koleksi ini hanya menyimpan relasi { uid: string, verified: true }
-    // Memungkinkan verifikasi keabsahan barcode tanpa mengekspos biodata pribadi mahasiswa
+    match /absensi/{attendanceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        request.resource.data.uid == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if false;
+    }
+
+    // 3. Index Publik Verifikasi NIM
     match /nim_index/{nim} {
-      allow read: if isUpnvjStudent();
-      allow write: if isUpnvjStudent() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 4. Default fallback aman untuk pengguna terautentikasi
+    match /{document=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }

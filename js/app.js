@@ -1570,10 +1570,17 @@ async function handleProfileSave(e) {
       try {
         const photoRef = ref(storage, `profile_photos/${uid}.jpg`);
         const blob = await (await fetch(formData.fotoURL)).blob();
-        await uploadBytes(photoRef, blob);
+        
+        // Timeout 3.5 detik: jika Firebase Storage belum diaktifkan di console, langsung fallback ke base64 tanpa hang
+        const uploadPromise = uploadBytes(photoRef, blob);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Storage timeout (bucket belum diaktifkan di Firebase Console)')), 3500)
+        );
+
+        await Promise.race([uploadPromise, timeoutPromise]);
         finalPhotoURL = await getDownloadURL(photoRef);
       } catch (storageErr) {
-        console.warn('Firebase Storage offline, menggunakan fallback base64 di Firestore:', storageErr);
+        console.warn('Firebase Storage tidak tersedia, menggunakan fallback base64 di Firestore:', storageErr?.message || storageErr);
       }
     }
 
