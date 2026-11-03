@@ -1,0 +1,140 @@
+/**
+ * Data Fakultas dan Program Studi Universitas Pembangunan Nasional "Veteran" Jakarta (UPNVJ)
+ * Sesuai spesifikasi resmi sistem absensi mahasiswa UPNVJ.
+ */
+
+export const FK_SPECIAL_NOTE = 
+  'Perlu diperhatikan bahwa "Profesi Dokter" dan "Profesi Apoteker" merupakan program profesi yang harus ditempuh setelah menyelesaikan gelar sarjana terkait, bukan program gelar sarjana mandiri. Selain itu, fakultas kedokteran di universitas ini juga memiliki program studi lain di bidang kesehatan seperti Keperawatan dan Gizi, tetapi program-program tersebut tidak tercantum dalam daftar 7 program studi yang diperkenalkan secara resmi oleh Fakultas Kedokteran.';
+
+export const FACULTIES = [
+  {
+    id: "feb",
+    code: "FEB",
+    name: "Fakultas Ekonomi dan Bisnis",
+    icon: "briefcase",
+    color: "#1e3a8a",
+    accent: "#3b82f6",
+    prodi: [
+      "D3 Perbankan dan Keuangan",
+      "D3 Akuntansi",
+      "S1 Manajemen",
+      "S1 Akuntansi",
+      "S1 Ekonomi Pembangunan",
+      "S1 Ekonomi Syariah",
+      "S2 Manajemen",
+      "S2 Akuntansi"
+    ]
+  },
+  {
+    id: "fk",
+    code: "FK",
+    name: "Fakultas Kedokteran",
+    icon: "stethoscope",
+    color: "#065f46",
+    accent: "#10b981",
+    specialNote: FK_SPECIAL_NOTE,
+    prodi: [
+      "S1 Kedokteran",
+      "Profesi Dokter",
+      "S1 Farmasi",
+      "Profesi Apoteker",
+      "S1 Biologi",
+      "Spesialis Radiologi",
+      "S2 Sains Biomedis"
+    ]
+  },
+  {
+    id: "fisip",
+    code: "FISIP",
+    name: "Fakultas Ilmu Sosial dan Politik",
+    icon: "landmark",
+    color: "#7c2d12",
+    accent: "#f97316",
+    prodi: [
+      "S1 Ilmu Komunikasi",
+      "S2 Ilmu Komunikasi",
+      "S1 Sains Informasi",
+      "S1 Kajian Film Televisi dan Media",
+      "S1 Hubungan Internasional",
+      "S2 Hubungan Internasional",
+      "S1 Ilmu Politik",
+      "S2 Ilmu Politik"
+    ]
+  },
+  {
+    id: "fik",
+    code: "FIK",
+    name: "Fakultas Ilmu Komputer",
+    icon: "laptop",
+    color: "#1e1b4b",
+    accent: "#6366f1",
+    prodi: [
+      "S1 Sistem Informasi",
+      "D3 Sistem Informasi",
+      "S1 Teknik Informatika",
+      "S1 Sains Data"
+    ]
+  },
+  {
+    id: "ft",
+    code: "FT",
+    name: "Fakultas Teknik",
+    icon: "cog",
+    color: "#78350f",
+    accent: "#d97706",
+    prodi: [
+      "S1 Teknik Mesin",
+      "S1 Teknik Industri",
+      "S1 Teknik Perkapalan",
+      "S1 Teknik Elektro",
+      "S1 Teknik Logistik"
+    ]
+  },
+  {
+    id: "fh",
+    code: "FH",
+    name: "Fakultas Hukum",
+    icon: "scale",
+    color: "#4c1d95",
+    accent: "#8b5cf6",
+    prodi: [
+      "S1 Hukum",
+      "S1 Hukum Bisnis",
+      "S2 Hukum",
+      "S3 Hukum"
+    ]
+  },
+  {
+    id: "fikes",
+    code: "FIKES",
+    name: "Fakultas Ilmu Kesehatan",
+    icon: "heart-pulse",
+    color: "#134e4a",
+    accent: "#14b8a6",
+    prodi: [
+      "D3 Keperawatan",
+      "D3 Fisioterapi",
+      "S1 Keperawatan",
+      "S1 Kesehatan Masyarakat",
+      "S1 Gizi",
+      "S1 Fisioterapi",
+      "Profesi Ners",
+      "S2 Kesehatan Masyarakat",
+      "S2 Keperawatan"
+    ]
+  }
+];
+
+export function getFaculties() {
+  return FACULTIES;
+}
+
+export function getFacultyById(id) {
+  if (!id) return null;
+  return FACULTIES.find(f => f.id.toLowerCase() === id.toLowerCase() || f.code.toLowerCase() === id.toLowerCase()) || null;
+}
+
+export function getProdiList(facultyId) {
+  const fac = getFacultyById(facultyId);
+  return fac ? fac.prodi : [];
+}

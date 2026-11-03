@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Sistem Absensi Mahasiswa UPN "Veteran" Jakarta</title>
+    <meta name="description" content="Sistem Absensi Terpadu Mahasiswa Universitas Pembangunan Nasional 'Veteran' Jakarta resmi, modern, cepat, dan berstandar institusi." />
+    <meta name="theme-color" content="#0b2341" />
+    <link rel="icon" type="image/png" href="assets/logo-upnvj.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- CSS Style -->
+    <link rel="stylesheet" href="/src/index.css">
+    <link rel="stylesheet" href="/css/style.css?v=2">
+
+    <!-- CDN Libraries (Barcode, QR Code, Scanner, Icons) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body>
+    <!-- Banner Status Offline -->
+    <div id="offline-banner" class="hidden" style="background: #f59e0b; color: #0b2341; padding: 10px 20px; text-align: center; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; position: sticky; top: 0; z-index: 60; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <i data-lucide="wifi-off" style="width: 16px; height: 16px;"></i>
+      <span>Koneksi internet terputus. Data presensi lokal tetap tersimpan dengan aman.</span>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+      <div class="navbar-container">
+        <!-- Logo & Brand -->
+        <a href="#/" class="brand-wrapper">
+          <div class="brand-logo-frame">
+            <img src="assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 36px; height: 36px; object-fit: contain;" onerror="this.onerror=null; this.src='public/assets/logo-upnvj.png';" />
+          </div>
+          <div class="brand-text-block">
+            <div class="brand-title">
+              <span>UPN "Veteran" Jakarta</span>
+              <span class="brand-badge">Presensi</span>
+            </div>
+            <div class="brand-subtitle">Sistem Informasi Absensi Mahasiswa</div>
+          </div>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <nav id="desktop-nav-links" class="desktop-nav hidden">
+          <a href="#/beranda" class="desktop-nav-btn"><i data-lucide="layout-dashboard" style="width: 15px; height: 15px;"></i><span>Beranda</span></a>
+          <a href="#/absensi" class="desktop-nav-btn"><i data-lucide="qr-code" style="width: 15px; height: 15px;"></i><span>Absensi</span></a>
+          <a href="#/riwayat" class="desktop-nav-btn"><i data-lucide="history" style="width: 15px; height: 15px;"></i><span>Riwayat</span></a>
+          <a href="#/profil" class="desktop-nav-btn"><i data-lucide="user-check" style="width: 15px; height: 15px;"></i><span>Profil</span></a>
+        </nav>
+
+        <!-- Right Side: Semester Badge & User Actions -->
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <!-- Academic Info Pill (Desktop) -->
+          <div class="hidden lg:flex" style="align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 6px 14px; border-radius: 9999px; border: 1px solid #e2e8f0;">
+            <i data-lucide="calendar" style="width: 13px; height: 13px; color: #0b2341;"></i>
+            <span>T.A. 2026/2027 · Semester Ganjil</span>
+          </div>
+
+          <!-- Logged In User Pill -->
+          <div id="nav-user-section" class="hidden" style="align-items: center; gap: 10px;">
+            <a href="#/profil" class="user-profile-chip" title="Buka Profil Mahasiswa">
+              <div id="nav-avatar-container" class="user-avatar-circle">
+                <img id="nav-user-avatar" src="" alt="Avatar" class="hidden" />
+                <div id="nav-user-initial">M</div>
+              </div>
+              <div class="user-chip-meta hidden md:flex">
+                <span id="nav-user-name" class="user-chip-name">Mahasiswa</span>
+                <span id="nav-user-nim" class="user-chip-nim">2110511001</span>
+              </div>
+            </a>
+            <button id="btn-logout" type="button" class="btn-icon-subtle" title="Keluar Akun" aria-label="Keluar Akun">
+              <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
+            </button>
+          </div>
+
+          <!-- Guest Action -->
+          <div id="nav-guest-section">
+            <a href="#/login" class="btn-login-cta">
+              <i data-lucide="log-in" style="width: 16px; height: 16px;"></i>
+              <span>Masuk Portal</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Dynamic Container -->
+    <main id="app-content">
+      <!-- ====================================================================
+           VIEW 1: LANDING / PILIH FAKULTAS
+           ==================================================================== -->
+      <section id="view-landing" class="app-view hidden">
+        <!-- Hero Section -->
+        <div class="hero-gradient">
+          <div class="hero-inner-container">
+            <div class="hero-emblem-badge">
+              <img src="assets/logo-upnvj.png" alt="Logo UPNVJ" onerror="this.onerror=null; this.src='public/assets/logo-upnvj.png';" />
+            </div>
+            <div class="hero-kicker-strip">
+              <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
+              <span>Portal Presensi Resmi Mahasiswa</span>
+            </div>
+            <h1 class="hero-title">
+              Sistem Absensi Mahasiswa<br />
+              <span class="text-gold">UPN "Veteran" Jakarta</span>
+            </h1>
+            <p class="hero-subtitle">
+              Sistem informasi presensi digital terpadu untuk perkuliahan semester ganjil/genap. Silakan tentukan fakultas Anda untuk mengakses jadwal mata kuliah, scan barcode/QR KTM digital, dan rekam kehadiran.
+            </p>
+            <div class="hero-meta-strip">
+              <div class="hero-meta-item">
+                <i data-lucide="check-circle-2" style="width: 15px; height: 15px; color: #fbbf24;"></i>
+                <span>7 Fakultas Resmi</span>
+              </div>
+              <div class="hero-meta-item">
+                <i data-lucide="check-circle-2" style="width: 15px; height: 15px; color: #fbbf24;"></i>
+                <span>38 Program Studi Terakreditasi</span>
+              </div>
+              <div class="hero-meta-item">
+                <i data-lucide="check-circle-2" style="width: 15px; height: 15px; color: #fbbf24;"></i>
+                <span>Terintegrasi Cloud Firestore & SIAKAD</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Faculty Selection Section -->
+        <div class="view-main-container" style="margin-top: -36px;">
+          <div class="card-portal" style="padding: 32px 28px; background: #ffffff; box-shadow: var(--shadow-lg);">
+            <div class="section-header-box">
+              <div>
+                <h2 class="section-title">Pilih Fakultas Anda</h2>
+                <p class="section-desc">Pilih fakultas tempat program studi Anda terdaftar untuk melanjutkan</p>
+              </div>
+              <span style="font-size: 12px; font-weight: 700; color: #0b2341; background: #f1f5f9; padding: 6px 14px; border-radius: 9999px; border: 1px solid #cbd5e1;">
+                7 Fakultas Aktif
+              </span>
+            </div>
+            <div id="faculty-grid" class="faculty-grid">
+              <!-- Rendered dynamically via js/app.js -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 2: PILIH PROGRAM STUDI
+           ==================================================================== -->
+      <section id="view-prodi" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 900px;">
+          <!-- Breadcrumb & Back Button -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <button id="btn-back-faculty" type="button" style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #334155; background: #ffffff; padding: 10px 18px; border-radius: 12px; border: 1px solid #cbd5e1; box-shadow: var(--shadow-sm); cursor: pointer; transition: all 0.2s ease;">
+              <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+              <span>Kembali ke Pilihan Fakultas</span>
+            </button>
+            <span id="prodi-view-faculty-badge" style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: #0b2341; color: #ffffff; padding: 6px 14px; border-radius: 9999px;">
+              Fakultas
+            </span>
+          </div>
+
+          <!-- Faculty Header Banner -->
+          <div class="faculty-banner-header">
+            <div style="display: flex; align-items: center; gap: 18px; position: relative; z-index: 2;">
+              <div id="prodi-faculty-icon-box" style="width: 58px; height: 58px; border-radius: 16px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; color: #fbbf24; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;">
+                <i data-lucide="graduation-cap" style="width: 28px; height: 28px;"></i>
+              </div>
+              <div>
+                <span id="prodi-faculty-code" style="font-size: 11px; font-weight: 800; color: #fbbf24; letter-spacing: 0.1em; text-transform: uppercase;">KODE</span>
+                <h2 id="prodi-faculty-name" style="font-size: 22px; font-weight: 800; color: #ffffff; line-height: 1.25; margin-top: 2px;">Nama Fakultas</h2>
+                <p id="prodi-count-info" style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">Daftar Program Studi</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advisory Note Khusus Fakultas Kedokteran (FK) -->
+          <div id="fk-info-alert" class="fk-academic-alert hidden">
+            <div class="fk-alert-header">
+              <i data-lucide="alert-circle" style="width: 18px; height: 18px; color: #0284c7;"></i>
+              <span>Pemberitahuan Akademik Khusus Fakultas Kedokteran</span>
+            </div>
+            <p id="fk-info-text"></p>
+          </div>
+
+          <!-- Search Program Studi -->
+          <div class="prodi-search-wrapper">
+            <i data-lucide="search" class="prodi-search-icon" style="width: 18px; height: 18px;"></i>
+            <input id="search-prodi-input" type="text" placeholder="Cari program studi (contoh: Kedokteran, Informatika, Akuntansi...)" class="prodi-search-input" />
+          </div>
+
+          <!-- List Program Studi -->
+          <div id="prodi-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Rendered dynamically via js/app.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 3: LOGIN
+           ==================================================================== -->
+      <section id="view-login" class="app-view hidden">
+        <div class="auth-page-container">
+          <!-- Summary Banner of Chosen Faculty & Prodi -->
+          <div id="login-selection-banner" class="auth-selection-pill">
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #cbd5e1; margin-bottom: 4px;">
+              <span>Program Studi Terpilih:</span>
+              <a href="#/prodi" style="color: #fbbf24; font-weight: 700; text-decoration: none;">Ganti Prodi &rarr;</a>
+            </div>
+            <div id="login-selected-prodi" style="font-size: 17px; font-weight: 800; color: #ffffff; line-height: 1.3;">Belum Dipilih</div>
+            <div id="login-selected-faculty" style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Silakan pilih fakultas</div>
+          </div>
+
+          <!-- Main Login Card -->
+          <div class="auth-card-body">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; background: #ffffff; padding: 6px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center;">
+                <img src="assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='public/assets/logo-upnvj.png';" />
+              </div>
+              <h2 style="font-size: 22px; font-weight: 800; color: #0b2341;">Portal Presensi Mahasiswa</h2>
+              <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Masuk menggunakan identitas resmi UPN "Veteran" Jakarta</p>
+            </div>
+
+            <!-- Segmented Control Login Method -->
+            <div class="auth-segmented-control">
+              <button id="tab-login-nim" type="button" class="auth-tab-btn active">
+                <i data-lucide="key-round" style="width: 15px; height: 15px;"></i>
+                <span>NIM & Tgl Lahir</span>
+              </button>
+              <button id="tab-login-google" type="button" class="auth-tab-btn">
+                <i data-lucide="mail" style="width: 15px; height: 15px;"></i>
+                <span>Google Institusi</span>
+              </button>
+            </div>
+
+            <!-- Form NIM & Tanggal Lahir -->
+            <div id="login-form-nim-container">
+              <form id="form-nim-login" novalidate>
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
+                  <span id="auth-mode-label" style="font-weight: 700; color: #0b2341;">Mode Masuk Akun</span>
+                  <button id="btn-toggle-auth-mode" type="button" style="color: #1e4b85; font-weight: 700; background: none; border: none; cursor: pointer;">
+                    Daftar Pertama Kali?
+                  </button>
+                </div>
+
+                <div class="form-group">
+                  <label for="login-nim-input" class="form-label">Nomor Induk Mahasiswa (NIM)</label>
+                  <input id="login-nim-input" type="text" inputmode="numeric" maxlength="10" placeholder="10 Digit angka (contoh: 2110511001)" class="form-input font-mono" required />
+                  <p id="error-login-nim" class="form-helper-error hidden">NIM wajib 10 digit angka.</p>
+                </div>
+
+                <div class="form-group">
+                  <label for="login-dob-input" class="form-label">Tanggal Lahir</label>
+                  <input id="login-dob-input" type="date" class="form-input" required />
+                  <p id="error-login-dob" class="form-helper-error hidden">Tanggal lahir tidak valid atau di masa depan.</p>
+                  <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Digunakan sebagai sandi verifikasi (format DDMMYYYY).</p>
+                </div>
+
+                <div id="register-name-field" class="form-group hidden">
+                  <label for="register-name-input" class="form-label">Nama Lengkap (Sesuai KTM)</label>
+                  <input id="register-name-input" type="text" placeholder="Masukkan nama lengkap mahasiswa" class="form-input" />
+                  <p id="error-register-name" class="form-helper-error hidden">Nama lengkap wajib diisi.</p>
+                </div>
+
+                <button id="btn-submit-nim-login" type="submit" class="btn-primary-block" style="margin-top: 10px;">
+                  <i data-lucide="log-in" style="width: 16px; height: 16px;"></i>
+                  <span id="btn-submit-nim-text">Masuk ke Sistem Absensi</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- Form Google SSO -->
+            <div id="login-form-google-container" class="hidden" style="text-align: center; padding: 10px 0;">
+              <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; text-align: left; font-size: 12px; color: #92400e; line-height: 1.5;">
+                <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                  <i data-lucide="shield-alert" style="width: 16px; height: 16px; color: #d97706;"></i>
+                  <span>Ketentuan Akun Google Institusi</span>
+                </div>
+                Hanya email berakhiran <strong style="color: #78350f;">@mahasiswa.upnvj.ac.id</strong> yang dapat mengakses portal ini. Email publik (@gmail.com) akan ditolak secara otomatis.
+              </div>
+
+              <button id="btn-login-google" type="button" class="btn-google-sso">
+                <svg style="width: 20px; height: 20px; flex-shrink: 0;" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Masuk dengan Akun Google Mahasiswa</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 4: BERANDA / DASHBOARD
+           ==================================================================== -->
+      <section id="view-beranda" class="app-view hidden">
+        <div class="view-main-container">
+          <!-- Student Executive Welcome Banner -->
+          <div class="dash-welcome-card">
+            <div style="display: flex; flex-direction: column; gap: 18px; position: relative; z-index: 2;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: #f59e0b; color: #07172c; padding: 4px 12px; border-radius: 9999px;">
+                    Mahasiswa Terverifikasi
+                  </span>
+                  <span id="dash-date-today" style="font-size: 12px; color: #cbd5e1; font-weight: 500;">Hari ini</span>
+                </div>
+                <a href="#/absensi" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #f59e0b; color: #07172c; border-radius: 12px; font-size: 13px; font-weight: 800; text-decoration: none; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
+                  <i data-lucide="qr-code" style="width: 16px; height: 16px;"></i>
+                  <span>Presensi Kuliah Sekarang</span>
+                </a>
+              </div>
+              <div>
+                <h1 id="dash-greeting" style="font-size: 28px; font-weight: 800; color: #ffffff; line-height: 1.2;">Halo, Mahasiswa</h1>
+                <p id="dash-prodi-info" style="font-size: 14px; color: #cbd5e1; margin-top: 4px;">Program Studi • Fakultas</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stat Metric Cards -->
+          <div class="stat-grid-row">
+            <div class="stat-metric-card">
+              <div class="stat-icon-wrapper" style="background: #e0f2fe; color: #0284c7;">
+                <i data-lucide="calendar-check" style="width: 26px; height: 26px;"></i>
+              </div>
+              <div>
+                <div class="stat-label-muted">Hadir Bulan Ini</div>
+                <div id="stat-hadir-bulan" class="stat-value-big">0</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Rekam presensi tercatat</div>
+              </div>
+            </div>
+
+            <div class="stat-metric-card">
+              <div class="stat-icon-wrapper" style="background: #d1fae5; color: #059669;">
+                <i data-lucide="clock-check" style="width: 26px; height: 26px;"></i>
+              </div>
+              <div>
+                <div class="stat-label-muted">Absen Hari Ini</div>
+                <div id="stat-absen-hari" class="stat-value-big">0</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Sesi mata kuliah aktif</div>
+              </div>
+            </div>
+
+            <div class="stat-metric-card">
+              <div class="stat-icon-wrapper" style="background: #fef3c7; color: #d97706;">
+                <i data-lucide="award" style="width: 26px; height: 26px;"></i>
+              </div>
+              <div style="min-width: 0;">
+                <div class="stat-label-muted">Matkul Terbanyak</div>
+                <div id="stat-matkul-terbanyak" class="stat-value-big" style="font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Frekuensi kehadiran tertinggi</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Split: Recent Attendance & Digital KTM Preview -->
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 28px;">
+            <!-- Recent Table Card -->
+            <div class="card-portal" style="padding: 24px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                <h3 style="font-size: 17px; font-weight: 800; color: #0b2341;">Riwayat Presensi Terbaru</h3>
+                <a href="#/riwayat" style="font-size: 13px; font-weight: 700; color: #1e4b85; text-decoration: none;">Lihat Semua &rarr;</a>
+              </div>
+              <div id="dash-recent-list" style="display: flex; flex-direction: column;">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+
+            <!-- KTM Preview Card -->
+            <div class="card-portal" style="padding: 24px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <h3 style="font-size: 17px; font-weight: 800; color: #0b2341; margin-bottom: 14px;">Identitas Mahasiswa</h3>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; text-align: center;">
+                  <div style="width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 9999px; overflow: hidden; background: #0b2341; border: 3px solid #ffffff; box-shadow: var(--shadow-md);">
+                    <img id="dash-card-photo" src="" alt="Foto Profil" class="hidden" style="width: 100%; height: 100%; object-fit: cover;" />
+                    <div id="dash-card-initial" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: #ffffff;">M</div>
+                  </div>
+                  <div id="dash-card-nama" style="font-size: 15px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Nama Mahasiswa</div>
+                  <div id="dash-card-nim" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #d97706; margin-top: 2px;">NIM: -</div>
+                  <div id="dash-card-prodi" style="font-size: 12px; color: #64748b; margin-top: 4px;">Program Studi</div>
+                </div>
+              </div>
+              <a href="#/absensi" style="margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 18px; background: #0b2341; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; transition: background 0.2s;">
+                <i data-lucide="badge-check" style="width: 16px; height: 16px; color: #fbbf24;"></i>
+                <span>Buka KTM Digital & Barcode</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 5: ABSENSI (SCAN BARCODE & PRESENSI MANUAL)
+           ==================================================================== -->
+      <section id="view-absensi" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 820px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="font-size: 26px; font-weight: 800; color: #0b2341;">Presensi Perkuliahan Mahasiswa</h1>
+            <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Pilih metode presensi menggunakan Barcode/QR Scanner atau Formulir Manual</p>
+          </div>
+
+          <!-- Segmented Tab Switcher -->
+          <div style="display: flex; background: #e2e8f0; padding: 5px; border-radius: 16px; max-width: 440px; margin: 0 auto 28px;">
+            <button id="tab-absensi-scan" type="button" style="flex: 1; padding: 11px 16px; border-radius: 12px; font-size: 13px; font-weight: 800; border: none; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; background: #ffffff; color: #0b2341; box-shadow: var(--shadow-sm);">
+              <i data-lucide="scan-line" style="width: 16px; height: 16px; color: #d97706;"></i>
+              <span>Scan Barcode / QR</span>
+            </button>
+            <button id="tab-absensi-manual" type="button" style="flex: 1; padding: 11px 16px; border-radius: 12px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #475569;">
+              <i data-lucide="edit-3" style="width: 16px; height: 16px;"></i>
+              <span>Presensi Manual</span>
+            </button>
+          </div>
+
+          <!-- TAB 1: SCAN BARCODE & DIGITAL KTM -->
+          <div id="absensi-content-scan" style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Step 1: Course Selection -->
+            <div class="card-portal" style="padding: 22px 24px; border-left: 5px solid #f59e0b; background: #ffffff;">
+              <label for="scan-matkul-input" class="form-label" style="font-size: 14px; color: #0b2341;">
+                Langkah 1: Tentukan Mata Kuliah yang Diikuti <span style="color: #e11d48;">*</span>
+              </label>
+              <input id="scan-matkul-input" type="text" list="course-suggestions" placeholder="Pilih atau ketik nama mata kuliah (contoh: Rekayasa Perangkat Lunak)" class="form-input" required />
+              <datalist id="course-suggestions"></datalist>
+              <p style="font-size: 12px; color: #64748b; margin-top: 6px;">Mata kuliah ini akan otomatis diikat saat barcode mahasiswa berhasil dipindai kamera.</p>
+            </div>
+
+            <!-- Step 2: Camera Scanner Viewport -->
+            <div class="card-portal" style="padding: 28px 24px; text-align: center;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; max-width: 440px; margin-left: auto; margin-right: auto;">
+                <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: #0b2341;">
+                  <i data-lucide="camera" style="width: 18px; height: 18px; color: #1e4b85;"></i>
+                  <span>Langkah 2: Pemindai Kamera</span>
+                </div>
+                <span id="scanner-status-badge" style="font-size: 11px; font-weight: 800; background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 9999px;">
+                  Siap
+                </span>
+              </div>
+
+              <!-- Viewport Frame -->
+              <div class="scanner-viewport-box">
+                <div id="scanner-reader" style="width: 100%; height: 100%;"></div>
+                <div id="scanner-overlay" class="hidden">
+                  <div class="scanner-laser"></div>
+                  <div class="scanner-corner scanner-corner-tl"></div>
+                  <div class="scanner-corner scanner-corner-tr"></div>
+                  <div class="scanner-corner scanner-corner-bl"></div>
+                  <div class="scanner-corner scanner-corner-br"></div>
+                </div>
+                <div id="scanner-idle-placeholder" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; color: #94a3b8;">
+                  <i data-lucide="camera" style="width: 48px; height: 48px; color: #64748b; margin-bottom: 12px;"></i>
+                  <p style="font-size: 13px; font-weight: 700; color: #e2e8f0;">Klik tombol di bawah untuk membuka kamera</p>
+                  <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Mendukung Barcode Code128, Code39, dan QR Code KTM</p>
+                </div>
+              </div>
+
+              <!-- Control Buttons -->
+              <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 20px; flex-wrap: wrap;">
+                <button id="btn-start-scanner" type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b2341; color: #ffffff; border-radius: 12px; font-size: 14px; font-weight: 700; border: none; cursor: pointer; box-shadow: var(--shadow-md);">
+                  <i data-lucide="camera" style="width: 16px; height: 16px;"></i>
+                  <span>Buka Kamera Scanner</span>
+                </button>
+                <button id="btn-stop-scanner" type="button" class="hidden" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: #ffe4e6; color: #e11d48; border-radius: 12px; font-size: 14px; font-weight: 700; border: none; cursor: pointer;">
+                  <i data-lucide="camera-off" style="width: 16px; height: 16px;"></i>
+                  <span>Tutup Kamera</span>
+                </button>
+                <button id="btn-switch-camera" type="button" class="hidden" style="display: inline-flex; align-items: center; gap: 6px; padding: 12px 16px; background: #f1f5f9; color: #334155; border-radius: 12px; font-size: 13px; font-weight: 700; border: none; cursor: pointer;">
+                  <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                  <span>Ganti Kamera</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 3: Digital Student ID Card (KTM) -->
+            <div class="card-portal" style="padding: 28px 24px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: gap: 12px;">
+                <div>
+                  <h3 style="font-size: 18px; font-weight: 800; color: #0b2341;">Kartu Tanda Mahasiswa (KTM) Digital</h3>
+                  <p style="font-size: 13px; color: #64748b;">Tunjukkan barcode ini langsung ke kamera perangkat atau scanner dosen</p>
+                </div>
+                <button id="btn-download-ktm" type="button" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: #e8f0fe; color: #1e4b85; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #bfdbfe; cursor: pointer;">
+                  <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                  <span>Unduh Gambar KTM</span>
+                </button>
+              </div>
+
+              <!-- High-Security Luxury Digital KTM -->
+              <div id="ktm-digital-card" class="ktm-card-container">
+                <div class="ktm-header-row">
+                  <div class="ktm-header-brand">
+                    <img src="assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 38px; height: 38px; object-fit: contain;" onerror="this.onerror=null; this.src='public/assets/logo-upnvj.png';" />
+                    <div>
+                      <div style="font-size: 13px; font-weight: 800; color: #fbbf24; letter-spacing: 0.05em; text-transform: uppercase;">UPN "Veteran" Jakarta</div>
+                      <div style="font-size: 9px; color: #cbd5e1; letter-spacing: 0.15em; text-transform: uppercase;">Kartu Tanda Mahasiswa Digital</div>
+                    </div>
+                  </div>
+                  <div style="width: 28px; height: 28px; border-radius: 9999px; background: rgba(245, 158, 11, 0.25); border: 1px solid #fbbf24; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fef08a;">
+                    ID
+                  </div>
+                </div>
+
+                <div class="ktm-body-flex">
+                  <div class="ktm-photo-box">
+                    <img id="ktm-photo" src="" alt="Foto KTM" class="hidden" />
+                    <div id="ktm-photo-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                      <i data-lucide="user" style="width: 36px; height: 36px;"></i>
+                    </div>
+                  </div>
+                  <div class="ktm-meta-info">
+                    <div id="ktm-nama" class="ktm-student-name">Nama Mahasiswa</div>
+                    <div class="ktm-student-nim">NIM: <span id="ktm-nim">2110511001</span></div>
+                    <div id="ktm-prodi" class="ktm-student-dept">Program Studi</div>
+                    <div id="ktm-fakultas" style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Fakultas</div>
+                  </div>
+                </div>
+
+                <div class="ktm-barcode-box">
+                  <svg id="ktm-barcode-canvas" class="ktm-barcode-svg"></svg>
+                  <div id="ktm-barcode-nim-text" class="ktm-barcode-nim-label">2110511001</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: MANUAL ATTENDANCE -->
+          <div id="absensi-content-manual" class="hidden">
+            <div class="card-portal" style="padding: 32px 28px; max-width: 580px; margin: 0 auto;">
+              <h3 style="font-size: 20px; font-weight: 800; color: #0b2341; margin-bottom: 4px;">Formulir Presensi Manual</h3>
+              <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">Gunakan formulir ini jika kamera terhalang atau sesuai instruksi pengawas kuliah.</p>
+
+              <form id="form-manual-attendance" novalidate>
+                <div class="form-group">
+                  <label for="manual-matkul-input" class="form-label">Mata Kuliah Perkuliahan <span style="color: #e11d48;">*</span></label>
+                  <input id="manual-matkul-input" type="text" list="course-suggestions" placeholder="Pilih atau masukkan nama mata kuliah" class="form-input" required />
+                  <p id="error-manual-matkul" class="form-helper-error hidden">Nama mata kuliah wajib diisi.</p>
+                </div>
+
+                <div class="form-group">
+                  <label for="manual-nim-input" class="form-label">NIM Mahasiswa <span style="color: #e11d48;">*</span></label>
+                  <input id="manual-nim-input" type="text" inputmode="numeric" maxlength="10" placeholder="10 Digit NIM" class="form-input font-mono" readonly required />
+                  <p id="error-manual-nim" class="form-helper-error hidden">NIM harus sesuai dengan akun yang sedang login.</p>
+                  <p style="font-size: 11px; color: #94a3b8; margin-top: 4px;">NIM otomatis terhubung dengan akun mahasiswa aktif.</p>
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;">
+                  <div>
+                    <span style="color: #64748b; display: block;">Nama Mahasiswa:</span>
+                    <strong id="manual-display-nama" style="color: #0b2341;">-</strong>
+                  </div>
+                  <div>
+                    <span style="color: #64748b; display: block;">Program Studi:</span>
+                    <strong id="manual-display-prodi" style="color: #0b2341;">-</strong>
+                  </div>
+                </div>
+
+                <button id="btn-submit-manual-absen" type="submit" class="btn-primary-block">
+                  <i data-lucide="check-circle-2" style="width: 16px; height: 16px;"></i>
+                  <span>Kirim Presensi Sekarang</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 6: RIWAYAT ABSENSI
+           ==================================================================== -->
+      <section id="view-riwayat" class="app-view hidden">
+        <div class="view-main-container">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 26px; font-weight: 800; color: #0b2341;">Rekapitulasi Kehadiran Mahasiswa</h1>
+              <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Seluruh catatan absensi perkuliahan yang tersimpan di database resmi kampus</p>
+            </div>
+            <button id="btn-export-csv" type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; background: #0b2341; color: #ffffff; border-radius: 12px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; box-shadow: var(--shadow-sm);">
+              <i data-lucide="download" style="width: 16px; height: 16px; color: #fbbf24;"></i>
+              <span>Unduh Rekapitulasi (CSV)</span>
+            </button>
+          </div>
+
+          <!-- Filters Bar -->
+          <div class="card-portal" style="padding: 18px 20px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+              <div style="position: relative;">
+                <i data-lucide="search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #94a3b8;"></i>
+                <input id="filter-riwayat-search" type="text" placeholder="Cari mata kuliah..." class="form-input" style="padding-left: 38px;" />
+              </div>
+              <div>
+                <select id="filter-riwayat-metode" class="form-input">
+                  <option value="all">Semua Metode Presensi</option>
+                  <option value="scan">Scan Barcode / QR</option>
+                  <option value="manual">Presensi Manual</option>
+                </select>
+              </div>
+              <div>
+                <input id="filter-riwayat-tanggal" type="date" class="form-input" title="Filter berdasarkan tanggal" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Container -->
+          <div class="card-portal" style="overflow: hidden;">
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+                  <tr>
+                    <th style="padding: 14px 20px;">Tanggal & Waktu</th>
+                    <th style="padding: 14px 20px;">Mata Kuliah</th>
+                    <th style="padding: 14px 20px;">Program Studi</th>
+                    <th style="padding: 14px 20px; text-align: center;">Metode</th>
+                    <th style="padding: 14px 20px; text-align: center;">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="riwayat-table-body" style="divide-y: 1px solid #f1f5f9;">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="riwayat-empty-state" class="hidden" style="padding: 56px 20px; text-align: center;">
+              <div style="width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 20px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                <i data-lucide="clipboard-x" style="width: 32px; height: 32px;"></i>
+              </div>
+              <h4 style="font-size: 16px; font-weight: 800; color: #0b2341;">Belum Ada Catatan Presensi</h4>
+              <p style="font-size: 13px; color: #64748b; max-width: 400px; margin: 6px auto 20px;">Anda belum melakukan presensi atau tidak ada data yang cocok dengan kriteria filter.</p>
+              <a href="#/absensi" class="btn-primary-block" style="display: inline-flex; width: auto; padding: 10px 24px;">
+                Mulai Presensi Sekarang
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 7: PROFIL MAHASISWA
+           ==================================================================== -->
+      <section id="view-profil" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 820px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="font-size: 26px; font-weight: 800; color: #0b2341;">Profil Akademik Mahasiswa</h1>
+            <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Lengkapi data identitas resmi untuk keperluan validasi presensi dan penerbitan KTM</p>
+          </div>
+
+          <!-- Progress Completion Meter -->
+          <div class="card-portal" style="padding: 20px 24px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 8px;">
+              <span style="color: #0b2341;">Kelengkapan Profil:</span>
+              <span id="profile-progress-percent" style="color: #1e4b85; font-weight: 800;">0%</span>
+            </div>
+            <div style="width: 100%; height: 10px; border-radius: 9999px; background: #e2e8f0; overflow: hidden;">
+              <div id="profile-progress-fill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #1e4b85, #f59e0b); border-radius: 9999px; transition: width 0.4s ease;"></div>
+            </div>
+            <p id="profile-progress-hint" style="font-size: 12px; color: #64748b; margin-top: 8px;">Lengkapi semua field bertanda bintang (*) untuk membuka seluruh fungsi presensi.</p>
+          </div>
+
+          <!-- Profile Form Card -->
+          <div class="card-portal" style="padding: 32px 28px;">
+            <form id="form-student-profile" novalidate>
+              <!-- Photo Upload Row -->
+              <div style="display: flex; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid #f1f5f9; margin-bottom: 24px; flex-wrap: wrap;">
+                <div style="position: relative; width: 92px; height: 92px; border-radius: 9999px; overflow: hidden; background: #f1f5f9; border: 3px solid #ffffff; box-shadow: var(--shadow-md); flex-shrink: 0;">
+                  <img id="profile-photo-preview" src="" alt="Preview Foto" class="hidden" style="width: 100%; height: 100%; object-fit: cover;" />
+                  <div id="profile-photo-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                    <i data-lucide="camera" style="width: 32px; height: 32px;"></i>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label" style="margin-bottom: 4px;">Foto Profil Mahasiswa (KTM)</label>
+                  <input id="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp" style="font-size: 12px;" />
+                  <p style="font-size: 11px; color: #94a3b8; margin-top: 6px;">Format JPG/PNG. Otomatis dipotong bulat dan dioptimalkan (&lt;200 KB).</p>
+                </div>
+              </div>
+
+              <!-- Form Fields Grid -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
+                <div style="grid-column: 1 / -1;">
+                  <label for="prof-nama" class="form-label">Nama Lengkap Mahasiswa <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-nama" type="text" placeholder="Masukkan nama lengkap sesuai KTP/KTM" class="form-input" required />
+                  <p id="error-prof-nama" class="form-helper-error hidden">Nama lengkap wajib diisi.</p>
+                </div>
+
+                <div>
+                  <label for="prof-nim" class="form-label">NIM (10 Digit Angka) <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-nim" type="text" inputmode="numeric" maxlength="10" placeholder="Contoh: 2110511001" class="form-input font-mono" required />
+                  <p id="error-prof-nim" class="form-helper-error hidden">NIM harus 10 digit angka.</p>
+                </div>
+
+                <div>
+                  <label for="prof-email" class="form-label">Email Institusi Resmi (Read-Only)</label>
+                  <input id="prof-email" type="email" class="form-input" readonly />
+                </div>
+
+                <div>
+                  <label for="prof-fakultas" class="form-label">Fakultas <span style="color: #e11d48;">*</span></label>
+                  <select id="prof-fakultas" class="form-input" required>
+                    <option value="">Pilih Fakultas</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="prof-prodi" class="form-label">Program Studi <span style="color: #e11d48;">*</span></label>
+                  <select id="prof-prodi" class="form-input" required>
+                    <option value="">Pilih Program Studi</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="prof-angkatan" class="form-label">Tahun Angkatan <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-angkatan" type="number" min="2015" max="2030" placeholder="2022" class="form-input" required />
+                </div>
+
+                <div>
+                  <label for="prof-semester" class="form-label">Semester Saat Ini <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-semester" type="number" min="1" max="14" placeholder="4" class="form-input" required />
+                </div>
+
+                <div>
+                  <label for="prof-dob" class="form-label">Tanggal Lahir <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-dob" type="date" class="form-input" required />
+                </div>
+
+                <div>
+                  <label for="prof-pob" class="form-label">Tempat Lahir <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-pob" type="text" placeholder="Kota / Kabupaten" class="form-input" required />
+                </div>
+
+                <div>
+                  <label for="prof-gender" class="form-label">Jenis Kelamin <span style="color: #e11d48;">*</span></label>
+                  <select id="prof-gender" class="form-input" required>
+                    <option value="">Pilih Jenis Kelamin</option>
+                    <option value="Laki-laki">Laki-laki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="prof-phone" class="form-label">Nomor WhatsApp / HP <span style="color: #e11d48;">*</span></label>
+                  <input id="prof-phone" type="tel" placeholder="Contoh: 081234567890" class="form-input" required />
+                  <p id="error-prof-phone" class="form-helper-error hidden">Nomor HP tidak valid.</p>
+                </div>
+
+                <div style="grid-column: 1 / -1;">
+                  <label for="prof-address" class="form-label">Alamat Domisili <span style="color: #e11d48;">*</span></label>
+                  <textarea id="prof-address" rows="3" placeholder="Masukkan alamat domisili lengkap" class="form-input" required></textarea>
+                </div>
+              </div>
+
+              <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end;">
+                <button id="btn-save-profile" type="submit" class="btn-primary-block" style="width: auto; padding: 13px 32px;">
+                  <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+                  <span>Simpan Perubahan Profil</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 8: 404 HALAMAN TIDAK DITEMUKAN
+           ==================================================================== -->
+      <section id="view-notfound" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 520px; text-align: center; padding: 60px 20px;">
+          <div style="font-size: 72px; font-weight: 900; font-family: 'Outfit', sans-serif; color: #f59e0b; line-height: 1;">404</div>
+          <h2 style="font-size: 22px; font-weight: 800; color: #0b2341; margin-top: 12px;">Halaman Tidak Ditemukan</h2>
+          <p style="font-size: 14px; color: #64748b; margin: 8px 0 24px;">Halaman yang Anda tuju tidak tersedia atau tautan telah dipindahkan.</p>
+          <a href="#/" class="btn-primary-block" style="display: inline-flex; width: auto; padding: 11px 24px;">
+            Kembali ke Beranda
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="mobile-bottom-nav">
+      <a href="#/beranda" class="nav-item" data-route="beranda">
+        <div class="nav-icon-wrapper"><i data-lucide="layout-dashboard" style="width: 20px; height: 20px;"></i></div>
+        <span>Beranda</span>
+      </a>
+      <a href="#/absensi" class="nav-item" data-route="absensi">
+        <div class="nav-icon-wrapper"><i data-lucide="qr-code" style="width: 20px; height: 20px;"></i></div>
+        <span>Absensi</span>
+      </a>
+      <a href="#/riwayat" class="nav-item" data-route="riwayat">
+        <div class="nav-icon-wrapper"><i data-lucide="history" style="width: 20px; height: 20px;"></i></div>
+        <span>Riwayat</span>
+      </a>
+      <a href="#/profil" class="nav-item" data-route="profil">
+        <div class="nav-icon-wrapper"><i data-lucide="user-check" style="width: 20px; height: 20px;"></i></div>
+        <span>Profil</span>
+      </a>
+    </nav>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Modal Konfirmasi Dialog Universal -->
+    <div id="confirm-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
+      <div class="card-portal" style="max-width: 400px; width: 100%; padding: 28px; background: #ffffff; box-shadow: var(--shadow-xl); transform: scale(1); transition: transform 0.2s;">
+        <div style="width: 48px; height: 48px; border-radius: 14px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+          <i data-lucide="alert-triangle" style="width: 24px; height: 24px;"></i>
+        </div>
+        <h3 id="confirm-modal-title" style="font-size: 18px; font-weight: 800; color: #0b2341;">Konfirmasi Tindakan</h3>
+        <p id="confirm-modal-message" style="font-size: 13px; color: #64748b; margin: 6px 0 24px; line-height: 1.5;">Apakah Anda yakin?</p>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
+          <button id="confirm-modal-cancel" type="button" style="padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #475569; background: #f1f5f9; border: none; cursor: pointer;">
+            Batal
+          </button>
+          <button id="confirm-modal-ok" type="button" style="padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #ffffff; background: #0b2341; border: none; cursor: pointer;">
+            Lanjutkan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Bukti Absensi Sukses (Boarding Pass / Certificate Receipt) -->
+    <div id="proof-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.75); backdrop-filter: blur(12px); display: none; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
+      <div class="card-portal" style="max-width: 440px; width: 100%; padding: 32px 28px; background: #ffffff; box-shadow: var(--shadow-xl); text-align: center;">
+        <div style="width: 72px; height: 72px; margin: 0 auto 16px;">
+          <svg style="width: 100%; height: 100%;" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none" />
+            <path class="checkmark-check" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+          </svg>
+        </div>
+
+        <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; background: #d1fae5; color: #065f46; padding: 4px 14px; border-radius: 9999px;">
+          Presensi Berhasil Terverifikasi
+        </span>
+        <h3 style="font-size: 22px; font-weight: 800; color: #0b2341; margin-top: 10px;">Kehadiran Tercatat!</h3>
+        <p style="font-size: 13px; color: #64748b; margin-top: 2px;">Data presensi perkuliahan telah masuk ke database resmi SIAKAD UPNVJ.</p>
+
+        <!-- Digital Receipt Box -->
+        <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 16px; padding: 18px 20px; margin: 20px 0; text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">Nama Mahasiswa:</span>
+            <strong id="proof-nama" style="color: #0b2341; font-weight: 700;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">NIM:</span>
+            <span id="proof-nim" class="font-mono" style="font-weight: 700; color: #d97706;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">Mata Kuliah:</span>
+            <strong id="proof-matkul" style="color: #1e4b85; font-weight: 800;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">Program Studi:</span>
+            <span id="proof-prodi" style="color: #334155; font-weight: 600;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">Waktu & Tanggal:</span>
+            <span id="proof-waktu" style="color: #334155; font-weight: 600;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="color: #64748b;">Metode Presensi:</span>
+            <span id="proof-metode" style="color: #0b2341; font-weight: 700;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 2px;">
+            <span style="color: #64748b;">Status:</span>
+            <span id="proof-status" style="font-weight: 800; color: #059669; background: #d1fae5; padding: 3px 10px; border-radius: 6px; font-size: 12px;">Hadir</span>
+          </div>
+        </div>
+
+        <button id="btn-close-proof" type="button" class="btn-primary-block" style="padding: 12px;">
+          Selesai & Tutup Bukti
+        </button>
+      </div>
+    </div>
+
+    <!-- Application Script Module -->
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

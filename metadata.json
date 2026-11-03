@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Absensi Mahasiswa UPNVJ",
+  "description": "Sistem Absensi Mahasiswa Universitas Pembangunan Nasional 'Veteran' Jakarta resmi, modern, responsif, dilengkapi scan barcode/QR KTM dan integrasi Firebase.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
