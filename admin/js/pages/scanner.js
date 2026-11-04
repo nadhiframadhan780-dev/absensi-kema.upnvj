@@ -8,6 +8,7 @@ import { addManualAttendance } from '../services/attendanceService.js';
 import { escapeHtml, getTodayWIB, formatTimeWIB } from '../utils.js';
 import { showToast } from '../ui.js';
 import { authState } from '../auth.js';
+import { validateDynamicQrPayload } from '../../../js/logic.js';
 
 let html5QrCode = null;
 let activeScannerSession = null;
@@ -75,10 +76,36 @@ async function loadActiveSessionsForScanner() {
   }
 }
 
+let adminScanFilterMode = 'all'; // 'all' | 'qr' | 'barcode'
+
 function setupScannerControls() {
   const btnStart = document.getElementById('btn-start-admin-scanner');
   const btnStop = document.getElementById('btn-stop-admin-scanner');
   const formManual = document.getElementById('form-scanner-manual-nim');
+
+  const btnAll = document.getElementById('btn-admin-scan-all');
+  const btnQr = document.getElementById('btn-admin-scan-qr');
+  const btnBarcode = document.getElementById('btn-admin-scan-barcode');
+
+  const setAdminFilter = (activeBtn, mode) => {
+    [btnAll, btnQr, btnBarcode].forEach(b => {
+      if (b) {
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-muted)';
+        b.classList.remove('active');
+      }
+    });
+    if (activeBtn) {
+      activeBtn.style.background = 'var(--navy-900, #0b2341)';
+      activeBtn.style.color = '#ffffff';
+      activeBtn.classList.add('active');
+    }
+    adminScanFilterMode = mode;
+  };
+
+  if (btnAll) btnAll.onclick = () => setAdminFilter(btnAll, 'all');
+  if (btnQr) btnQr.onclick = () => setAdminFilter(btnQr, 'qr');
+  if (btnBarcode) btnBarcode.onclick = () => setAdminFilter(btnBarcode, 'barcode');
 
   if (btnStart) btnStart.onclick = startAdminCamera;
   if (btnStop) btnStop.onclick = stopAdminCamera;
@@ -170,32 +197,45 @@ async function stopAdminCamera() {
 }
 
 /**
- * Proses Barcode / NIM yang Dipindai:
- * Validasi Mahasiswa, Cek Duplikat, Catat Absensi, Tampilkan Kartu Hasil 2 Detik
+ * Proses Barcode / QR NIM yang Dipindai:
+ * Validasi Mahasiswa, Verifikasi Token 30 Detik Anti-Screenshot, Catat Absensi, Tampilkan Kartu Hasil 2 Detik
  */
-async function processScannedNim(rawNim) {
+async function processScannedNim(rawInput) {
   if (!activeScannerSession) {
     showToast('warning', 'Pilih Sesi', 'Harap pilih sesi perkuliahan aktif terlebih dahulu.');
     return;
   }
 
-  // Jika payload berupa JSON QR sesi mahasiswa, ekstrak NIM
-  let nim = rawNim;
-  try {
-    if (rawNim.startsWith('{')) {
-      const parsed = JSON.parse(rawNim);
-      if (parsed.nim) nim = parsed.nim;
-    }
-  } catch (e) {}
+  // 1. Validasi Token QR Dinamis (30 Detik) atau Barcode 1D
+  const validation = validateDynamicQrPayload(rawInput);
 
-  if (!/^\d{10}$/.test(nim)) {
-    showResultCard(false, 'Format Barcode Tidak Valid', `Data terbaca ("${nim}") bukan 10 digit NIM.`);
+  if (!validation.valid) {
     playScanSound(false);
+    if (validation.isExpired) {
+      showResultCard(false, '❌ QR CODE KADALUWARSA!', validation.reason);
+    } else {
+      showResultCard(false, 'Format Tidak Dikenali', validation.reason);
+    }
     return;
   }
 
+  // Enforce scan filter mode jika dipilih admin
+  if (adminScanFilterMode === 'qr' && !validation.isDynamicQr) {
+    playScanSound(false);
+    showResultCard(false, 'Khusus QR Code Dinamis', 'Scanner diatur hanya menerima QR Code Dinamis 30 detik (Anti-Titip). Barcode 1D ditolak.');
+    return;
+  }
+
+  if (adminScanFilterMode === 'barcode' && !validation.isBarcode1D) {
+    playScanSound(false);
+    showResultCard(false, 'Khusus Barcode 1D', 'Scanner diatur hanya menerima Barcode 1D. QR Code ditolak.');
+    return;
+  }
+
+  const nim = validation.nim;
+
   try {
-    // 1. Ambil data mahasiswa dari Firestore
+    // 2. Ambil data mahasiswa dari Firestore
     const studentSnap = await getDocs(query(
       collection(db, 'students'),
       where('nim', '==', nim),
@@ -210,9 +250,11 @@ async function processScannedNim(rawNim) {
 
     const student = studentSnap.docs[0].data();
 
-    // 2. Catat absensi via attendanceService
+    // 3. Catat absensi via attendanceService
     const now = new Date();
     const timeFormatted = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+    const formatLabel = validation.isDynamicQr ? 'QR Dinamis 30s' : 'Barcode 1D';
 
     const newRecord = {
       uid: student.uid || studentSnap.docs[0].id,
@@ -227,21 +269,21 @@ async function processScannedNim(rawNim) {
       tanggal: getTodayWIB(),
       waktu: timeFormatted,
       status: 'Hadir',
-      metode: 'scan-admin',
-      keterangan: 'Dipindai oleh scanner admin di kelas'
+      metode: validation.isDynamicQr ? 'scan-qr-dinamis' : 'scan-barcode',
+      keterangan: `Dipindai via ${formatLabel} di kelas`
     };
 
     await addManualAttendance(newRecord);
     playScanSound(true);
 
     // Tampilkan kartu hasil sukses selama 2 detik
-    showResultCard(true, student.nama, `NIM: ${student.nim} • ${student.prodi}`, student.fotoURL);
+    showResultCard(true, student.nama, `NIM: ${student.nim} • ${student.prodi} [${formatLabel}]`, student.fotoURL);
 
     // Masukkan ke riwayat scan terakhir
     recentScans.unshift({
       nama: student.nama,
       nim: student.nim,
-      waktu: timeFormatted,
+      waktu: `${timeFormatted} (${formatLabel})`,
       status: 'Hadir'
     });
     renderRecentScansList();

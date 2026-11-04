@@ -9,7 +9,9 @@ import {
   validateIndonesianPhone,
   calculateProfileProgress,
   isDuplicateAttendance,
-  generateCsvContent
+  generateCsvContent,
+  generateDynamicQrPayload,
+  validateDynamicQrPayload
 } from '../js/logic.js';
 import { FACULTIES, getFacultyById, getProdiList, FK_SPECIAL_NOTE } from '../js/data.js';
 
@@ -133,4 +135,52 @@ test('Ekspor CSV', () => {
   assert.ok(csv.includes('Tanggal,Waktu,Mata Kuliah'));
   assert.ok(csv.includes('Kecerdasan Buatan'));
   assert.ok(csv.includes('Scan Barcode'));
+});
+
+test('QR Code Dinamis 30 Detik: Pembuatan token ber-TTL 30 detik', () => {
+  const baseTime = 1762240000000;
+  const result = generateDynamicQrPayload('2110511001', 'Budi Pratama', baseTime, 30000);
+  assert.ok(result.token);
+  assert.equal(result.exp, baseTime + 30000);
+  assert.equal(result.payload.nim, '2110511001');
+  assert.equal(result.payload.type, 'UPNVJ_STUDENT_DYNAMIC_QR');
+  assert.ok(result.payloadString.includes('UPNVJ_STUDENT_DYNAMIC_QR'));
+});
+
+test('QR Code Dinamis 30 Detik: Validasi saat masih aktif', () => {
+  const baseTime = 1762240000000;
+  const { payloadString } = generateDynamicQrPayload('2110511001', 'Budi Pratama', baseTime, 30000);
+  
+  // Validasi 10 detik setelah dibuat
+  const checkTime = baseTime + 10000;
+  const val = validateDynamicQrPayload(payloadString, checkTime);
+  assert.equal(val.valid, true);
+  assert.equal(val.isDynamicQr, true);
+  assert.equal(val.nim, '2110511001');
+  assert.equal(val.remainingSec, 20);
+});
+
+test('QR Code Dinamis 30 Detik: Deteksi Kadaluwarsa / Anti-Screenshot', () => {
+  const baseTime = 1762240000000;
+  const { payloadString } = generateDynamicQrPayload('2110511001', 'Budi Pratama', baseTime, 30000);
+  
+  // Validasi 60 detik setelah dibuat (melebihi 30s + grace 15s)
+  const expiredTime = baseTime + 60000;
+  const val = validateDynamicQrPayload(payloadString, expiredTime, 15);
+  assert.equal(val.valid, false);
+  assert.equal(val.isExpired, true);
+  assert.ok(val.reason.includes('Kadaluwarsa'));
+  assert.ok(val.reason.includes('Screenshot'));
+});
+
+test('QR Code Dinamis 30 Detik: Fallback Barcode 1D', () => {
+  // Barcode 1D konvensional hanya berupa 10 digit angka NIM
+  const val = validateDynamicQrPayload('2110511001');
+  assert.equal(val.valid, true);
+  assert.equal(val.isBarcode1D, true);
+  assert.equal(val.nim, '2110511001');
+
+  // Input bukan NIM atau format aneh
+  const invalidVal = validateDynamicQrPayload('BukanNIM123');
+  assert.equal(invalidVal.valid, false);
 });

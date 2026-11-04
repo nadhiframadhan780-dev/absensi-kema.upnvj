@@ -44,7 +44,9 @@ import {
   validateIndonesianPhone,
   calculateProfileProgress,
   isDuplicateAttendance,
-  generateCsvContent
+  generateCsvContent,
+  generateDynamicQrPayload,
+  validateDynamicQrPayload
 } from './logic.js';
 
 import {
@@ -285,8 +287,9 @@ function handleNavigation(hash) {
     view.classList.add('hidden');
   });
 
-  if (cleanHash !== '#/absensi' && state.isScanning) {
-    stopCameraScanner();
+  if (cleanHash !== '#/absensi') {
+    if (state.isScanning) stopCameraScanner();
+    if (typeof stopDynamicQrRotation === 'function') stopDynamicQrRotation();
   }
 
   updateActiveNav(cleanHash);
@@ -847,10 +850,22 @@ function renderRecentDashboardList() {
 /**
  * 5. CONTROLLER: ABSENSI
  */
+// State for Dynamic QR Code & Anti-Cheat Guards
+let dynamicQrInterval = null;
+let watermarkClockInterval = null;
+let qrExpiresAt = 0;
+let currentKtmFormat = 'qr'; // 'qr' or 'barcode'
+let antiScreenshotGuardsInitialized = false;
+let scanFilterMode = 'all'; // 'all', 'qr', 'barcode'
+
+/**
+ * 5. CONTROLLER: ABSENSI
+ */
 function renderAbsensiView() {
   if (!state.currentUser) return;
   const prof = state.studentProfile || {};
 
+  // Tab 1: Scan vs Manual Tab Switcher
   const tabScan = document.getElementById('tab-absensi-scan');
   const tabManual = document.getElementById('tab-absensi-manual');
   const contentScan = document.getElementById('absensi-content-scan');
@@ -866,6 +881,9 @@ function renderAbsensiView() {
       tabManual.style.boxShadow = 'none';
       contentScan.classList.remove('hidden');
       contentManual.classList.add('hidden');
+      if (currentKtmFormat === 'qr') {
+        startDynamicQrRotation(prof);
+      }
     };
 
     tabManual.onclick = () => {
@@ -878,11 +896,17 @@ function renderAbsensiView() {
       contentManual.classList.remove('hidden');
       contentScan.classList.add('hidden');
       if (state.isScanning) stopCameraScanner();
+      stopDynamicQrRotation();
     };
   }
 
+  // Setup Scanner Format Filters (Semua / Fokus QR / Fokus Barcode)
+  setupScanFilterControls();
+
+  // Render Student ID Card (KTM)
   renderDigitalKtm(prof);
 
+  // Setup Camera Scanner Controls
   const btnStartScanner = document.getElementById('btn-start-scanner');
   const btnStopScanner = document.getElementById('btn-stop-scanner');
   const btnSwitchCamera = document.getElementById('btn-switch-camera');
@@ -891,20 +915,58 @@ function renderAbsensiView() {
   if (btnStopScanner) btnStopScanner.onclick = stopCameraScanner;
   if (btnSwitchCamera) btnSwitchCamera.onclick = switchCamera;
 
+  // Setup Manual Attendance Form
   setupManualAttendanceForm(prof);
 
+  // Setup Anti-Screenshot & Screen Capture Guards
+  setupAntiScreenshotGuards(prof);
+
+  // Download KTM Listener
   const btnDownloadKtm = document.getElementById('btn-download-ktm');
   if (btnDownloadKtm) btnDownloadKtm.onclick = downloadKtmImage;
 
   if (window.lucide) window.lucide.createIcons();
 }
 
+/**
+ * Pengaturan Filter Mode Scanner Kamera (Otomatis / Fokus QR / Fokus Barcode)
+ */
+function setupScanFilterControls() {
+  const btnAll = document.getElementById('btn-scan-filter-all');
+  const btnQr = document.getElementById('btn-scan-filter-qr');
+  const btnBarcode = document.getElementById('btn-scan-filter-barcode');
+
+  const setFilterActive = (activeBtn, mode) => {
+    [btnAll, btnQr, btnBarcode].forEach(b => {
+      if (b) {
+        b.style.background = 'transparent';
+        b.style.color = '#475569';
+        b.classList.remove('active');
+      }
+    });
+    if (activeBtn) {
+      activeBtn.style.background = '#0b2341';
+      activeBtn.style.color = '#ffffff';
+      activeBtn.classList.add('active');
+    }
+    scanFilterMode = mode;
+  };
+
+  if (btnAll) btnAll.onclick = () => setFilterActive(btnAll, 'all');
+  if (btnQr) btnQr.onclick = () => setFilterActive(btnQr, 'qr');
+  if (btnBarcode) btnBarcode.onclick = () => setFilterActive(btnBarcode, 'barcode');
+}
+
+/**
+ * Render Kartu Mahasiswa (KTM) & Inisialisasi Tab QR Dinamis vs Barcode
+ */
 function renderDigitalKtm(profile) {
   const ktmNama = document.getElementById('ktm-nama');
   const ktmNim = document.getElementById('ktm-nim');
   const ktmProdi = document.getElementById('ktm-prodi');
   const ktmFakultas = document.getElementById('ktm-fakultas');
   const ktmBarcodeText = document.getElementById('ktm-barcode-nim-text');
+  const ktmWatermarkNim = document.getElementById('ktm-watermark-nim');
   const ktmPhoto = document.getElementById('ktm-photo');
   const ktmPhotoPlaceholder = document.getElementById('ktm-photo-placeholder');
 
@@ -919,6 +981,7 @@ function renderDigitalKtm(profile) {
   if (ktmProdi) ktmProdi.textContent = prodi;
   if (ktmFakultas) ktmFakultas.textContent = fakultas;
   if (ktmBarcodeText) ktmBarcodeText.textContent = nim;
+  if (ktmWatermarkNim) ktmWatermarkNim.textContent = nim;
 
   if (profile.fotoURL) {
     if (ktmPhoto) {
@@ -931,23 +994,299 @@ function renderDigitalKtm(profile) {
     if (ktmPhotoPlaceholder) ktmPhotoPlaceholder.classList.remove('hidden');
   }
 
-  try {
-    if (window.JsBarcode) {
-      window.JsBarcode("#ktm-barcode-canvas", nim, {
-        format: "CODE128",
-        lineColor: "#0b2341",
-        width: 1.8,
-        height: 50,
-        displayValue: false,
-        margin: 4
-      });
+  // Setup Tab Switcher Format Kode (QR Code Dinamis vs Barcode 1D)
+  initKtmFormatTabs(profile);
+}
+
+/**
+ * Inisialisasi Tab Switcher Pilihan Format: QR Code Dinamis (2D) vs Barcode (1D)
+ */
+function initKtmFormatTabs(profile) {
+  const tabQr = document.getElementById('tab-ktm-qr');
+  const tabBarcode = document.getElementById('tab-ktm-barcode');
+  const boxQr = document.getElementById('ktm-qr-box');
+  const boxBarcode = document.getElementById('ktm-barcode-box');
+  const btnDownload = document.getElementById('btn-download-ktm');
+  const securityNotice = document.getElementById('ktm-qr-security-notice');
+  const badgeMode = document.getElementById('ktm-badge-mode');
+
+  const btnRefresh = document.getElementById('btn-refresh-qr-now');
+  if (btnRefresh) {
+    btnRefresh.onclick = () => {
+      generateFreshStudentQr(profile);
+      showToast('info', 'QR Code Diperbarui', 'Token presensi baru berdurasi 30 detik telah aktif.');
+    };
+  }
+
+  const selectQrMode = () => {
+    currentKtmFormat = 'qr';
+    if (tabQr) {
+      tabQr.style.background = '#0b2341';
+      tabQr.style.color = '#ffffff';
+      tabQr.classList.add('active');
     }
-  } catch (err) {
-    console.warn("Gagal membuat barcode via JsBarcode:", err);
+    if (tabBarcode) {
+      tabBarcode.style.background = 'transparent';
+      tabBarcode.style.color = '#475569';
+      tabBarcode.classList.remove('active');
+    }
+    if (boxQr) boxQr.classList.remove('hidden');
+    if (boxBarcode) boxBarcode.classList.add('hidden');
+    if (btnDownload) btnDownload.classList.add('hidden');
+    if (securityNotice) securityNotice.classList.remove('hidden');
+    if (badgeMode) {
+      badgeMode.textContent = 'QR 30S LIVE';
+      badgeMode.style.background = 'rgba(245, 158, 11, 0.2)';
+      badgeMode.style.color = '#fde68a';
+      badgeMode.style.borderColor = '#fbbf24';
+    }
+    startDynamicQrRotation(profile);
+  };
+
+  const selectBarcodeMode = () => {
+    currentKtmFormat = 'barcode';
+    if (tabBarcode) {
+      tabBarcode.style.background = '#0b2341';
+      tabBarcode.style.color = '#ffffff';
+      tabBarcode.classList.add('active');
+    }
+    if (tabQr) {
+      tabQr.style.background = 'transparent';
+      tabQr.style.color = '#475569';
+      tabQr.classList.remove('active');
+    }
+    if (boxBarcode) boxBarcode.classList.remove('hidden');
+    if (boxQr) boxQr.classList.add('hidden');
+    if (btnDownload) btnDownload.classList.remove('hidden');
+    if (securityNotice) securityNotice.classList.add('hidden');
+    if (badgeMode) {
+      badgeMode.textContent = 'BARCODE 1D';
+      badgeMode.style.background = 'rgba(148, 163, 184, 0.2)';
+      badgeMode.style.color = '#cbd5e1';
+      badgeMode.style.borderColor = '#94a3b8';
+    }
+
+    stopDynamicQrRotation();
+
+    // Render Barcode via JsBarcode
+    try {
+      if (window.JsBarcode) {
+        const nim = profile.nim || '2110511001';
+        window.JsBarcode("#ktm-barcode-canvas", nim, {
+          format: "CODE128",
+          lineColor: "#0b2341",
+          width: 1.8,
+          height: 50,
+          displayValue: false,
+          margin: 4
+        });
+      }
+    } catch (err) {
+      console.warn("Gagal membuat barcode:", err);
+    }
+  };
+
+  if (tabQr) tabQr.onclick = selectQrMode;
+  if (tabBarcode) tabBarcode.onclick = selectBarcodeMode;
+
+  // Jalankan mode awal (default QR Code Dinamis)
+  if (currentKtmFormat === 'qr') {
+    selectQrMode();
+  } else {
+    selectBarcodeMode();
   }
 }
 
+/**
+ * Memulai Rotasi QR Code Mahasiswa Setiap 30 Detik (Anti Titip Absen)
+ */
+function startDynamicQrRotation(profile) {
+  stopDynamicQrRotation();
+
+  // Generate QR Code baru sekarang
+  generateFreshStudentQr(profile);
+
+  // Timer loop setiap 200ms untuk smooth countdown progress bar
+  dynamicQrInterval = setInterval(() => {
+    const now = Date.now();
+    const remainingMs = Math.max(0, qrExpiresAt - now);
+    const remainingSec = Math.ceil(remainingMs / 1000);
+
+    const countdownEl = document.getElementById('ktm-qr-countdown');
+    const fillEl = document.getElementById('ktm-qr-progress-fill');
+
+    if (countdownEl) {
+      countdownEl.textContent = `${remainingSec}s`;
+      if (remainingSec <= 5) {
+        countdownEl.style.color = '#ef4444';
+      } else if (remainingSec <= 15) {
+        countdownEl.style.color = '#f59e0b';
+      } else {
+        countdownEl.style.color = '#059669';
+      }
+    }
+
+    if (fillEl) {
+      const pct = (remainingMs / 30000) * 100;
+      fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    }
+
+    // Jika waktu 30 detik habis, perbarui otomatis dengan token baru
+    if (remainingMs <= 0) {
+      generateFreshStudentQr(profile);
+    }
+  }, 200);
+
+  // Jam Realtime WIB Berpresisi Milidetik (Security Moving Watermark)
+  const watermarkClock = document.getElementById('ktm-watermark-clock');
+  watermarkClockInterval = setInterval(() => {
+    if (watermarkClock) {
+      const d = new Date();
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      const ms = String(d.getMilliseconds()).padStart(3, '0');
+      watermarkClock.textContent = `${h}:${m}:${s}.${ms}`;
+    }
+  }, 50);
+}
+
+/**
+ * Hentikan interval QR Dinamis & Watermark Clock
+ */
+function stopDynamicQrRotation() {
+  if (dynamicQrInterval) {
+    clearInterval(dynamicQrInterval);
+    dynamicQrInterval = null;
+  }
+  if (watermarkClockInterval) {
+    clearInterval(watermarkClockInterval);
+    watermarkClockInterval = null;
+  }
+}
+
+/**
+ * Generate Token & Gambar QR Code Dinamis Baru (Valid 30 Detik)
+ */
+function generateFreshStudentQr(profile) {
+  const nim = profile.nim || '2110511001';
+  const nama = profile.nama || 'Mahasiswa UPNVJ';
+
+  const { payloadString, exp } = generateDynamicQrPayload(nim, nama, Date.now(), 30000);
+  qrExpiresAt = exp;
+
+  const container = document.getElementById('ktm-qr-canvas');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  try {
+    if (window.QRCode) {
+      new window.QRCode(container, {
+        text: payloadString,
+        width: 195,
+        height: 195,
+        colorDark: '#0b2341',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel.M
+      });
+    }
+  } catch (err) {
+    console.warn("Gagal membuat QR code via QRCodejs:", err);
+  }
+}
+
+/**
+ * Proteksi Anti-Screenshot, Anti-Screen Recording, & Window Blur Detection
+ * Mencegah titip absen menggunakan screenshot atau foto layar lama
+ */
+function setupAntiScreenshotGuards(profile) {
+  if (antiScreenshotGuardsInitialized) return;
+  antiScreenshotGuardsInitialized = true;
+
+  const shieldEl = document.getElementById('ktm-screenshot-shield');
+
+  const triggerShieldWarning = (reason = 'Tangkapan Layar Ditolak') => {
+    if (!shieldEl) return;
+    shieldEl.classList.remove('hidden');
+
+    // Jika pengguna mencoba screenshot, seketika hanguskan token lama & buat baru
+    if (currentKtmFormat === 'qr' && state.currentRoute === '#/absensi') {
+      generateFreshStudentQr(state.studentProfile || {});
+    }
+
+    setTimeout(() => {
+      shieldEl.classList.add('hidden');
+    }, 2400);
+  };
+
+  // 1. Deteksi Tombol Screenshot Keyboard (PrintScreen, Win+Shift+S, Cmd+Shift+3/4, Ctrl+P)
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'PrintScreen') {
+      triggerShieldWarning('Tombol PrintScreen Terdeteksi');
+      showToast('warning', 'Tangkapan Layar Ditolak', 'QR Code dilindungi token 30 detik untuk mencegah titip absen.');
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    // Cegah pintasan cetak / Print to PDF
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      triggerShieldWarning('Pintasan Cetak Dokumen Dicegah');
+      showToast('warning', 'Pencetakan Ditolak', 'KTM QR Code dinamis tidak dapat dicetak.');
+      return false;
+    }
+
+    // Deteksi kombinasi Snipping Tool (Windows: Win+Shift+S, Mac: Cmd+Shift+3/4/5)
+    if (e.shiftKey && (e.metaKey || e.ctrlKey)) {
+      triggerShieldWarning('Perekam Layar / Snipping Terdeteksi');
+    }
+  });
+
+  // 2. Deteksi Beralih Aplikasi / Tab Inaktif (Window Blur & Visibility Change)
+  // Saat pengguna berpindah jendela untuk membuka alat screenshot, QR seketika ditutup
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (shieldEl) shieldEl.classList.remove('hidden');
+    } else {
+      if (shieldEl) shieldEl.classList.add('hidden');
+      // Saat kembali aktif, buat token baru seketika!
+      if (currentKtmFormat === 'qr' && state.currentRoute === '#/absensi') {
+        generateFreshStudentQr(state.studentProfile || {});
+      }
+    }
+  });
+
+  window.addEventListener('blur', () => {
+    if (currentKtmFormat === 'qr' && state.currentRoute === '#/absensi') {
+      if (shieldEl) shieldEl.classList.remove('hidden');
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    if (shieldEl) shieldEl.classList.add('hidden');
+    if (currentKtmFormat === 'qr' && state.currentRoute === '#/absensi') {
+      generateFreshStudentQr(state.studentProfile || {});
+    }
+  });
+
+  // 3. Disable Drag & Drop pada Frame QR
+  const qrFrameArea = document.getElementById('ktm-qr-frame-area');
+  if (qrFrameArea) {
+    qrFrameArea.addEventListener('contextmenu', (e) => e.preventDefault());
+    qrFrameArea.addEventListener('dragstart', (e) => e.preventDefault());
+  }
+}
+
+/**
+ * Unduh Gambar KTM (Hanya Tersedia untuk Mode Barcode 1D Statis)
+ */
 function downloadKtmImage() {
+  if (currentKtmFormat === 'qr') {
+    showToast('warning', 'Unduh Dilarang', 'Demi keamanan & mencegah titip absen, QR Code Dinamis 30 detik tidak dapat diunduh sebagai gambar.');
+    return;
+  }
+
   const nim = state.studentProfile ? state.studentProfile.nim : 'KTM_UPNVJ';
   const canvas = document.createElement('canvas');
   canvas.width = 600;
@@ -971,7 +1310,7 @@ function downloadKtmImage() {
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '11px Plus Jakarta Sans, sans-serif';
-  ctx.fillText('KARTU TANDA MAHASISWA DIGITAL', 30, 65);
+  ctx.fillText('KARTU TANDA MAHASISWA DIGITAL (BARCODE)', 30, 65);
 
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
   ctx.beginPath();
@@ -1146,27 +1485,79 @@ async function switchCamera() {
 }
 
 async function onBarcodeScanSuccess(decodedText) {
-  const scannedNim = decodedText.trim();
+  const rawText = (decodedText || '').trim();
   const matkulInput = document.getElementById('scan-matkul-input');
-  const matkul = matkulInput ? matkulInput.value.trim() : 'Mata Kuliah';
+  let matkul = matkulInput ? matkulInput.value.trim() : 'Mata Kuliah';
 
   await stopCameraScanner();
 
-  if (!validateNim(scannedNim)) {
-    showToast('error', 'Barcode Tidak Valid', `Data terbaca ("${scannedNim}") bukan format 10 digit NIM UPNVJ.`);
+  // 1. Cek jika data adalah Sesi QR Perkuliahan dari Dosen (UPNVJ_ATTENDANCE_SESSION)
+  if (rawText.startsWith('{') && rawText.includes('UPNVJ_ATTENDANCE_SESSION')) {
+    try {
+      const sessionData = JSON.parse(rawText);
+      const now = Date.now();
+      if (sessionData.exp && now > Number(sessionData.exp)) {
+        showToast('error', 'Sesi QR Kadaluwarsa', 'QR Code sesi perkuliahan telah berganti. Silakan scan QR terbaru di layar proyektor.');
+        return;
+      }
+
+      if (scanFilterMode === 'barcode') {
+        showToast('warning', 'Filter Barcode Aktif', 'Kamera mendeteksi QR Code Sesi Dosen. Ubah filter ke "Semua" atau "Fokus QR Code".');
+        return;
+      }
+
+      const currentNim = state.studentProfile ? state.studentProfile.nim : '';
+      if (!currentNim) {
+        showToast('error', 'Profil Belum Lengkap', 'NIM mahasiswa tidak ditemukan pada sesi login saat ini.');
+        return;
+      }
+
+      await recordAttendance({
+        nim: currentNim,
+        mataKuliah: sessionData.kodeMk || matkul,
+        sesiId: sessionData.sessionId || null,
+        metode: 'scan-qr-sesi'
+      });
+      return;
+    } catch (e) {
+      console.warn('Gagal memproses QR Sesi:', e);
+    }
+  }
+
+  // 2. Validasi menggunakan validateDynamicQrPayload (Dukungan QR Dinamis 30s & Barcode 1D)
+  const validation = validateDynamicQrPayload(rawText);
+
+  // Filter mode enforcement
+  if (scanFilterMode === 'qr' && validation.isBarcode1D) {
+    showToast('warning', 'Fokus QR Code Aktif', 'Kode yang terbaca adalah Barcode 1D. Silakan arahkan ke QR Code.');
+    return;
+  }
+  if (scanFilterMode === 'barcode' && validation.isDynamicQr) {
+    showToast('warning', 'Fokus Barcode Aktif', 'Kode yang terbaca adalah QR Code. Silakan arahkan ke Barcode 1D.');
     return;
   }
 
+  // Jika QR Code Dinamis Kadaluwarsa (>30 detik / screenshot lama)
+  if (!validation.valid) {
+    if (validation.isExpired) {
+      showToast('error', 'Absen Titipan Ditolak!', validation.reason);
+    } else {
+      showToast('error', 'Kode Tidak Dikenali', validation.reason);
+    }
+    return;
+  }
+
+  const scannedNim = validation.nim;
   const currentNim = state.studentProfile ? state.studentProfile.nim : '';
   if (currentNim && scannedNim !== currentNim) {
-    showToast('warning', 'NIM Tidak Cocok', `Barcode milik NIM ${scannedNim}, sedangkan Anda masuk sebagai NIM ${currentNim}.`);
+    showToast('warning', 'NIM Tidak Cocok', `Kode milik NIM ${scannedNim}, sedangkan Anda masuk sebagai NIM ${currentNim}.`);
     return;
   }
 
   await recordAttendance({
     nim: scannedNim,
     mataKuliah: matkul,
-    metode: 'scan'
+    metode: validation.isDynamicQr ? 'scan-qr-dinamis' : 'scan-barcode'
   });
 }
 

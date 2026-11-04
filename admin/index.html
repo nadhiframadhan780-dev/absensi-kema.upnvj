@@ -517,12 +517,30 @@
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
             <div class="card-portal">
-              <h3 class="card-portal-title" style="margin-bottom: 12px;">Pemindai Barcode / QR KTM Mahasiswa</h3>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <h3 class="card-portal-title" style="margin: 0;">Pemindai Presensi (QR Code & Barcode)</h3>
+                <span style="font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; padding: 3px 10px; border-radius: 9999px;">
+                  Anti-Titip Absen 30s
+                </span>
+              </div>
               
               <div class="form-group">
                 <label class="form-label">Pilih Sesi Kelas Aktif Saat Ini:</label>
                 <select id="scanner-session-select" class="form-select"></select>
                 <div id="scanner-session-hint" style="font-size: 11px; margin-top: 6px;"></div>
+              </div>
+
+              <!-- Pilihan Format Target Scan -->
+              <div style="display: flex; background: var(--bg-main, #f1f5f9); padding: 4px; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--border-color);">
+                <button type="button" id="btn-admin-scan-all" class="admin-scan-mode-tab active" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 800; border: none; border-radius: 8px; cursor: pointer; background: var(--navy-900, #0b2341); color: #ffffff; transition: all 0.2s;">
+                  Semua (QR & Barcode)
+                </button>
+                <button type="button" id="btn-admin-scan-qr" class="admin-scan-mode-tab" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.2s;">
+                  Khusus QR Dinamis (30s)
+                </button>
+                <button type="button" id="btn-admin-scan-barcode" class="admin-scan-mode-tab" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.2s;">
+                  Khusus Barcode (1D)
+                </button>
               </div>
 
               <!-- Viewport Kamera Scanner -->

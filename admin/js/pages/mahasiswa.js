@@ -298,8 +298,22 @@ function openStudentDetailDrawer(uid) {
             <div><strong>Status:</strong> ${student.aktif !== false ? 'Aktif' : 'Nonaktif'}</div>
           </div>
         </div>
-        <div class="ktm-barcode-container" style="background: #ffffff; padding: 6px; border-radius: 6px; text-align: center;">
-          <svg id="drawer-ktm-barcode" style="width: 100%; height: 44px;"></svg>
+        <!-- Pilihan Tampilan Barcode & QR Code KTM -->
+        <div style="background: #ffffff; padding: 10px; border-radius: 8px; text-align: center;">
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <button type="button" id="drawer-tab-barcode" style="flex: 1; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #0b2341; color: #ffffff; cursor: pointer;">
+              Barcode 1D
+            </button>
+            <button type="button" id="drawer-tab-qr" style="flex: 1; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #f1f5f9; color: #475569; cursor: pointer;">
+              QR Code 2D
+            </button>
+          </div>
+          <div id="drawer-barcode-container">
+            <svg id="drawer-ktm-barcode" style="width: 100%; height: 44px;"></svg>
+          </div>
+          <div id="drawer-qr-container" class="hidden" style="display: flex; justify-content: center; padding: 8px;">
+            <div id="drawer-ktm-qr"></div>
+          </div>
         </div>
       </div>
 
@@ -325,8 +339,32 @@ function openStudentDetailDrawer(uid) {
 
   openDrawer(`Mahasiswa: ${student.nama}`, contentHtml, footerHtml);
 
-  // Render Barcode via JsBarcode
+  // Setup tab switcher & render Barcode / QR
   setTimeout(() => {
+    const tabBarcode = document.getElementById('drawer-tab-barcode');
+    const tabQr = document.getElementById('drawer-tab-qr');
+    const boxBarcode = document.getElementById('drawer-barcode-container');
+    const boxQr = document.getElementById('drawer-qr-container');
+
+    if (tabBarcode && tabQr && boxBarcode && boxQr) {
+      tabBarcode.onclick = () => {
+        tabBarcode.style.background = '#0b2341';
+        tabBarcode.style.color = '#ffffff';
+        tabQr.style.background = '#f1f5f9';
+        tabQr.style.color = '#475569';
+        boxBarcode.classList.remove('hidden');
+        boxQr.classList.add('hidden');
+      };
+      tabQr.onclick = () => {
+        tabQr.style.background = '#0b2341';
+        tabQr.style.color = '#ffffff';
+        tabBarcode.style.background = '#f1f5f9';
+        tabBarcode.style.color = '#475569';
+        boxQr.classList.remove('hidden');
+        boxBarcode.classList.add('hidden');
+      };
+    }
+
     if (window.JsBarcode && student.nim) {
       try {
         window.JsBarcode('#drawer-ktm-barcode', student.nim, {
@@ -341,6 +379,18 @@ function openStudentDetailDrawer(uid) {
       } catch (e) {
         console.warn('Gagal render barcode di drawer:', e);
       }
+    }
+
+    const qrContainer = document.getElementById('drawer-ktm-qr');
+    if (window.QRCode && qrContainer && student.nim) {
+      qrContainer.innerHTML = '';
+      new window.QRCode(qrContainer, {
+        text: student.nim,
+        width: 120,
+        height: 120,
+        colorDark: '#0b2341',
+        colorLight: '#ffffff'
+      });
     }
   }, 100);
 }

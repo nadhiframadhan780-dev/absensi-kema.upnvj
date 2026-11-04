@@ -434,7 +434,7 @@
 
             <!-- Step 2: Camera Scanner Viewport -->
             <div class="card-portal" style="padding: 28px 24px; text-align: center;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; max-width: 440px; margin-left: auto; margin-right: auto;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; max-width: 440px; margin-left: auto; margin-right: auto; flex-wrap: wrap; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: #0b2341;">
                   <i data-lucide="camera" style="width: 18px; height: 18px; color: #1e4b85;"></i>
                   <span>Langkah 2: Pemindai Kamera</span>
@@ -442,6 +442,19 @@
                 <span id="scanner-status-badge" style="font-size: 11px; font-weight: 800; background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 9999px;">
                   Siap
                 </span>
+              </div>
+
+              <!-- Format Target Selection Pill -->
+              <div style="display: flex; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 3px; border-radius: 12px; max-width: 440px; margin: 0 auto 16px;">
+                <button id="btn-scan-filter-all" type="button" class="scan-filter-chip active" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 800; border: none; border-radius: 9px; cursor: pointer; background: #0b2341; color: #ffffff; transition: all 0.2s;">
+                  Semua (QR & Barcode)
+                </button>
+                <button id="btn-scan-filter-qr" type="button" class="scan-filter-chip" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 700; border: none; border-radius: 9px; cursor: pointer; background: transparent; color: #475569; transition: all 0.2s;">
+                  Fokus QR Code (2D)
+                </button>
+                <button id="btn-scan-filter-barcode" type="button" class="scan-filter-chip" style="flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 700; border: none; border-radius: 9px; cursor: pointer; background: transparent; color: #475569; transition: all 0.2s;">
+                  Fokus Barcode (1D)
+                </button>
               </div>
 
               <!-- Viewport Frame -->
@@ -478,20 +491,41 @@
               </div>
             </div>
 
-            <!-- Step 3: Digital Student ID Card (KTM) -->
+            <!-- Step 3: Digital Student ID Card (KTM) & Attendance Code -->
             <div class="card-portal" style="padding: 28px 24px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: gap: 12px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
                 <div>
-                  <h3 style="font-size: 18px; font-weight: 800; color: #0b2341;">Kartu Tanda Mahasiswa (KTM) Digital</h3>
-                  <p style="font-size: 13px; color: #64748b;">Tunjukkan barcode ini langsung ke kamera perangkat atau scanner dosen</p>
+                  <h3 style="font-size: 18px; font-weight: 800; color: #0b2341;">Kode Presensi & KTM Digital</h3>
+                  <p style="font-size: 13px; color: #64748b;">Pilih format kode yang ingin ditampilkan untuk dipindai scanner dosen/kiosk</p>
                 </div>
-                <button id="btn-download-ktm" type="button" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: #e8f0fe; color: #1e4b85; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #bfdbfe; cursor: pointer;">
-                  <i data-lucide="download" style="width: 15px; height: 15px;"></i>
-                  <span>Unduh Gambar KTM</span>
+
+                <!-- Right Action: Download for Barcode / Security badge for Dynamic QR -->
+                <div id="ktm-action-right">
+                  <button id="btn-download-ktm" type="button" class="hidden" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: #e8f0fe; color: #1e4b85; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #bfdbfe; cursor: pointer;">
+                    <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+                    <span>Unduh Gambar KTM (Barcode)</span>
+                  </button>
+                  <div id="ktm-qr-security-notice" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; padding: 6px 12px; border-radius: 10px;">
+                    <i data-lucide="shield-check" style="width: 15px; height: 15px; color: #d97706;"></i>
+                    <span>Anti-Titip Absen: QR Dinamis Dilindungi</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Segmented Switcher: QR Code Dinamis vs Barcode 1D -->
+              <div class="ktm-format-switcher" style="display: flex; background: #e2e8f0; padding: 4px; border-radius: 14px; max-width: 490px; margin: 0 auto 20px;">
+                <button id="tab-ktm-qr" type="button" class="ktm-format-tab active" style="flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 800; border: none; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; background: #0b2341; color: #ffffff; box-shadow: var(--shadow-sm);">
+                  <i data-lucide="qr-code" style="width: 15px; height: 15px; color: #fbbf24;"></i>
+                  <span>QR Code Dinamis (2D)</span>
+                  <span style="font-size: 10px; background: #fbbf24; color: #0b2341; padding: 2px 6px; border-radius: 9999px; font-weight: 800;">30 Detik</span>
+                </button>
+                <button id="tab-ktm-barcode" type="button" class="ktm-format-tab" style="flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #475569;">
+                  <i data-lucide="barcode" style="width: 15px; height: 15px;"></i>
+                  <span>Barcode Statis (1D)</span>
                 </button>
               </div>
 
-              <!-- High-Security Luxury Digital KTM -->
+              <!-- High-Security Luxury Digital KTM Container -->
               <div id="ktm-digital-card" class="ktm-card-container">
                 <div class="ktm-header-row">
                   <div class="ktm-header-brand">
@@ -501,8 +535,10 @@
                       <div style="font-size: 9px; color: #cbd5e1; letter-spacing: 0.15em; text-transform: uppercase;">Kartu Tanda Mahasiswa Digital</div>
                     </div>
                   </div>
-                  <div style="width: 28px; height: 28px; border-radius: 9999px; background: rgba(245, 158, 11, 0.25); border: 1px solid #fbbf24; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fef08a;">
-                    ID
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span id="ktm-badge-mode" style="font-size: 10px; font-weight: 800; text-transform: uppercase; background: rgba(245, 158, 11, 0.2); color: #fde68a; border: 1px solid #fbbf24; padding: 3px 8px; border-radius: 9999px;">
+                      QR 30S LIVE
+                    </span>
                   </div>
                 </div>
 
@@ -521,9 +557,69 @@
                   </div>
                 </div>
 
-                <div class="ktm-barcode-box">
+                <!-- 1. DYNAMIC 30-SECOND QR CODE DISPLAY (DEFAULT) -->
+                <div id="ktm-qr-box" class="ktm-qr-wrapper">
+                  <!-- Realtime Watermark Banner -->
+                  <div class="ktm-live-watermark">
+                    <span class="watermark-pulse-dot"></span>
+                    <span>WIB LIVE: <strong id="ktm-watermark-clock">00:00:00.000</strong></span>
+                    <span style="opacity: 0.5;">•</span>
+                    <span id="ktm-watermark-nim">2110511001</span>
+                    <span style="opacity: 0.5;">•</span>
+                    <span style="color: #f59e0b; font-weight: 800;">ANTI-TITIP</span>
+                  </div>
+
+                  <!-- QR Canvas Container with Anti-Screenshot Shield -->
+                  <div class="ktm-qr-frame" id="ktm-qr-frame-area" oncontextmenu="return false;" ondragstart="return false;">
+                    <div id="ktm-qr-canvas" class="ktm-qr-code-element"></div>
+                    
+                    <!-- Dynamic Hologram Shimmer Layer -->
+                    <div class="ktm-hologram-shimmer"></div>
+
+                    <!-- Screen Shield (Tangkapan Layar Ditolak / Window Blur) -->
+                    <div id="ktm-screenshot-shield" class="ktm-shield-overlay hidden">
+                      <div class="ktm-shield-content">
+                        <i data-lucide="shield-alert" style="width: 32px; height: 32px; color: #fbbf24; margin-bottom: 6px;"></i>
+                        <div style="font-size: 13px; font-weight: 800; color: #ffffff;">TANGKAPAN LAYAR TERDETEKSI</div>
+                        <p style="font-size: 11px; color: #fde68a; margin-top: 4px; line-height: 1.4;">
+                          Screenshot dilarang demi mencegah titip absen. Kode QR diperbarui seketika!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 30-Second Countdown Meter & Manual Refresh Button -->
+                  <div class="ktm-qr-timer-bar">
+                    <div class="ktm-timer-progress-track">
+                      <div id="ktm-qr-progress-fill" class="ktm-timer-progress-fill"></div>
+                    </div>
+                    <div class="ktm-timer-labels-row">
+                      <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #0b2341; font-weight: 700;">
+                        <i data-lucide="timer" style="width: 14px; height: 14px; color: #d97706;"></i>
+                        <span>Berlaku: <strong id="ktm-qr-countdown" class="font-mono text-gold" style="font-size: 14px; color: #b45309;">30s</strong></span>
+                      </div>
+                      <button id="btn-refresh-qr-now" type="button" class="btn-refresh-qr" title="Segarkan QR Code sekarang">
+                        <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                        <span>Perbarui Kode</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style="font-size: 11px; color: #64748b; margin-top: 6px; text-align: center;">
+                    🔒 Token otomatis berganti setiap 30 detik & saat jendela ditutup/berpindah.
+                  </div>
+                </div>
+
+                <!-- 2. CONVENTIONAL 1D BARCODE DISPLAY -->
+                <div id="ktm-barcode-box" class="ktm-barcode-box hidden">
+                  <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; text-align: center;">
+                    Barcode 1D Standar (Code128)
+                  </div>
                   <svg id="ktm-barcode-canvas" class="ktm-barcode-svg"></svg>
                   <div id="ktm-barcode-nim-text" class="ktm-barcode-nim-label">2110511001</div>
+                  <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: center;">
+                    Gunakan scanner barcode USB/kamera untuk memindai garis batang di atas
+                  </div>
                 </div>
               </div>
             </div>
