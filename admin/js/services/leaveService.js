@@ -62,7 +62,10 @@ export async function approveLeaveRequest(requestId, adminNote, adminUser) {
   if (!snap.exists()) throw new Error('Pengajuan tidak ditemukan.');
 
   const reqData = snap.data();
-  const statusBaru = reqData.jenis === 'Sakit' ? 'Sakit' : 'Izin';
+  let statusBaru = 'Izin';
+  if (reqData.jenis === 'Sakit') statusBaru = 'Sakit';
+  else if (reqData.jenis === 'Dispensasi') statusBaru = 'Dispensasi';
+  else statusBaru = 'Izin';
 
   const batch = writeBatch(db);
 

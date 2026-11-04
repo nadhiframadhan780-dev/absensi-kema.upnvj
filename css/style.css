@@ -1601,3 +1601,264 @@ h1, h2, h3, h4, .font-heading {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ==========================================================================
+   PENGAJUAN SURAT SAKIT, IZIN, & DISPENSASI (UI/UX MODERN)
+   ========================================================================== */
+.btn-leave-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-leave-tab:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-leave-tab.active {
+  background: #ffffff;
+  color: #0b2341;
+  border-color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.leave-type-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .leave-type-selector-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.leave-type-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  user-select: none;
+}
+
+.leave-type-card:hover {
+  border-color: #94a3b8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 35, 65, 0.06);
+}
+
+.leave-type-card.selected {
+  border-color: #0b2341;
+  background: #f8fafc;
+  box-shadow: 0 4px 16px rgba(11, 35, 65, 0.08);
+}
+
+.leave-type-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.leave-type-card.selected .leave-type-icon-box {
+  transform: scale(1.08);
+}
+
+.leave-type-icon-box.type-sakit {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.leave-type-icon-box.type-izin {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.leave-type-icon-box.type-dispensasi {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.leave-type-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.leave-type-title {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #0b2341;
+}
+
+.leave-type-desc {
+  display: block;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.leave-type-check-indicator {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.leave-type-card.selected .leave-type-check-indicator {
+  border-color: #0b2341;
+  background: #0b2341;
+  color: #ffffff;
+}
+
+.leave-upload-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 24px 20px;
+  text-align: center;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.leave-upload-dropzone.drag-active {
+  border-color: #0b2341;
+  background: #eff6ff;
+  transform: scale(1.01);
+}
+
+.dropzone-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.text-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.btn-icon-danger {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon-danger:hover {
+  background: #fca5a5;
+  transform: scale(1.05);
+}
+
+.btn-filter-history {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-filter-history.active {
+  background: #0b2341;
+  color: #ffffff;
+  border-color: #0b2341;
+}
+
+.leave-history-card {
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(11, 35, 65, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.leave-history-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(11, 35, 65, 0.08);
+  border-color: #cbd5e1;
+}
+
+.badge-leave-sakit {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.badge-leave-izin {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.badge-leave-dispensasi {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #e9d5ff;
+}
+

@@ -24,6 +24,7 @@ import {
   query, 
   where, 
   orderBy, 
+  onSnapshot,
   getDocs, 
   addDoc, 
   serverTimestamp 
@@ -81,6 +82,7 @@ export {
   query,
   where,
   orderBy,
+  onSnapshot,
   getDocs,
   addDoc,
   serverTimestamp,

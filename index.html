@@ -51,6 +51,7 @@
         <nav id="desktop-nav-links" class="desktop-nav hidden">
           <a href="#/beranda" class="desktop-nav-btn"><i data-lucide="layout-dashboard" style="width: 15px; height: 15px;"></i><span>Beranda</span></a>
           <a href="#/absensi" class="desktop-nav-btn"><i data-lucide="qr-code" style="width: 15px; height: 15px;"></i><span>Absensi</span></a>
+          <a href="#/pengajuan" class="desktop-nav-btn"><i data-lucide="file-text" style="width: 15px; height: 15px;"></i><span>Pengajuan Surat</span></a>
           <a href="#/riwayat" class="desktop-nav-btn"><i data-lucide="history" style="width: 15px; height: 15px;"></i><span>Riwayat</span></a>
           <a href="#/profil" class="desktop-nav-btn"><i data-lucide="user-check" style="width: 15px; height: 15px;"></i><span>Profil</span></a>
         </nav>
@@ -862,6 +863,306 @@
       </section>
 
       <!-- ====================================================================
+           VIEW 7.5: PENGAJUAN SURAT SAKIT, IZIN, & DISPENSASI MAHASISWA
+           ==================================================================== -->
+      <section id="view-pengajuan" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 960px;">
+          <!-- Header Banner Pengajuan -->
+          <div class="card-portal" style="padding: 28px; background: linear-gradient(135deg, #0b2341 0%, #173861 100%); color: #ffffff; box-shadow: var(--shadow-lg); margin-bottom: 24px; position: relative; overflow: hidden;">
+            <div style="position: absolute; right: -30px; bottom: -30px; opacity: 0.08; pointer-events: none;">
+              <i data-lucide="file-text" style="width: 220px; height: 220px;"></i>
+            </div>
+            <div style="position: relative; z-index: 2;">
+              <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); padding: 5px 14px; border-radius: 9999px; margin-bottom: 12px;">
+                <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+                <span>Layanan Presensi Resmi UPNVJ</span>
+              </div>
+              <h1 style="font-size: 24px; font-weight: 800; margin: 0 0 8px 0; font-family: 'Outfit', sans-serif;">
+                Pengajuan Surat Sakit, Izin, & Dispensasi
+              </h1>
+              <p style="font-size: 13.5px; color: #cbd5e1; max-width: 680px; margin: 0; line-height: 1.55;">
+                Mahasiswa yang berhalangan hadir perkuliahan wajib mengajukan surat resmi beserta dokumen bukti sah (PDF, Word, atau Foto). Setelah diverifikasi dosen/admin, presensi akan otomatis disesuaikan di sistem SIAKAD.
+              </p>
+
+              <!-- Tab Navigation: Form vs History -->
+              <div style="display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap;">
+                <button type="button" id="tab-btn-leave-form" class="btn-leave-tab active">
+                  <i data-lucide="file-plus-2" style="width: 16px; height: 16px;"></i>
+                  <span>Formulir Pengajuan Baru</span>
+                </button>
+                <button type="button" id="tab-btn-leave-history" class="btn-leave-tab">
+                  <i data-lucide="history" style="width: 16px; height: 16px;"></i>
+                  <span>Riwayat Pengajuan Saya</span>
+                  <span id="badge-leave-history-count" style="display: none; background: #fbbf24; color: #0b2341; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 9999px;">0</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 1: FORMULIR PENGAJUAN -->
+          <div id="leave-tab-content-form" class="leave-tab-panel">
+            <div class="card-portal" style="padding: 32px 28px; background: #ffffff; box-shadow: var(--shadow-md);">
+              <form id="form-leave-request" novalidate>
+                <!-- 1. PILIH JENIS PENGAJUAN -->
+                <div style="margin-bottom: 24px;">
+                  <label class="form-label" style="font-size: 14px; margin-bottom: 10px;">
+                    1. Pilih Jenis Ketidakhadiran <span style="color: #e11d48;">*</span>
+                  </label>
+                  <div class="leave-type-selector-grid">
+                    <!-- Sakit -->
+                    <label class="leave-type-card selected" data-type="Sakit">
+                      <input type="radio" name="leave-type" value="Sakit" checked class="hidden" />
+                      <div class="leave-type-icon-box type-sakit">
+                        <i data-lucide="stethoscope" style="width: 22px; height: 22px;"></i>
+                      </div>
+                      <div class="leave-type-info">
+                        <strong class="leave-type-title">Surat Sakit</strong>
+                        <span class="leave-type-desc">Surat keterangan dokter, klinik, puskesmas, atau kwitansi rawat.</span>
+                      </div>
+                      <div class="leave-type-check-indicator"><i data-lucide="check" style="width: 14px; height: 14px;"></i></div>
+                    </label>
+
+                    <!-- Izin -->
+                    <label class="leave-type-card" data-type="Izin">
+                      <input type="radio" name="leave-type" value="Izin" class="hidden" />
+                      <div class="leave-type-icon-box type-izin">
+                        <i data-lucide="file-text" style="width: 22px; height: 22px;"></i>
+                      </div>
+                      <div class="leave-type-info">
+                        <strong class="leave-type-title">Surat Izin</strong>
+                        <span class="leave-type-desc">Keperluan keluarga mendesak, duka cita, atau urusan administratif resmi.</span>
+                      </div>
+                      <div class="leave-type-check-indicator"><i data-lucide="check" style="width: 14px; height: 14px;"></i></div>
+                    </label>
+
+                    <!-- Dispensasi -->
+                    <label class="leave-type-card" data-type="Dispensasi">
+                      <input type="radio" name="leave-type" value="Dispensasi" class="hidden" />
+                      <div class="leave-type-icon-box type-dispensasi">
+                        <i data-lucide="award" style="width: 22px; height: 22px;"></i>
+                      </div>
+                      <div class="leave-type-info">
+                        <strong class="leave-type-title">Surat Dispensasi</strong>
+                        <span class="leave-type-desc">Surat tugas lomba, delegasi kampus, kegiatan ormawa resmi, atau dinas.</span>
+                      </div>
+                      <div class="leave-type-check-indicator"><i data-lucide="check" style="width: 14px; height: 14px;"></i></div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- 2. MATA KULIAH & DOSEN -->
+                <div class="form-grid-2" style="margin-bottom: 20px;">
+                  <div>
+                    <label for="leave-input-matkul" class="form-label">
+                      2. Mata Kuliah Terkait <span style="color: #e11d48;">*</span>
+                    </label>
+                    <input 
+                      id="leave-input-matkul" 
+                      type="text" 
+                      list="course-suggestions" 
+                      placeholder="Contoh: Pemrograman Web / Semua Mata Kuliah" 
+                      class="form-input" 
+                      required 
+                    />
+                    <datalist id="course-suggestions">
+                      <!-- Populated dynamically via js -->
+                    </datalist>
+                    <span style="font-size: 11.5px; color: #64748b; margin-top: 4px; display: block;">
+                      Ketikkan nama mata kuliah yang berjadwal pada tanggal izin, atau "Semua Kuliah Hari Ini".
+                    </span>
+                  </div>
+
+                  <div>
+                    <label for="leave-input-dosen" class="form-label">
+                      Nama Dosen Pengampu (Opsional)
+                    </label>
+                    <input 
+                      id="leave-input-dosen" 
+                      type="text" 
+                      placeholder="Contoh: Dr. Ir. Nadhif Ramadhan, M.Kom" 
+                      class="form-input" 
+                    />
+                    <span style="font-size: 11.5px; color: #64748b; margin-top: 4px; display: block;">
+                      Membantu notifikasi dan verifikasi langsung ke dosen pengampu.
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 3. RENTANG TANGGAL IZIN -->
+                <div style="margin-bottom: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                    <label class="form-label" style="margin-bottom: 0;">
+                      3. Waktu Pelaksanaan Izin / Sakit <span style="color: #e11d48;">*</span>
+                    </label>
+                    <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #0b2341; cursor: pointer;">
+                      <input type="checkbox" id="leave-check-oneday" checked style="width: 16px; height: 16px; accent-color: #0b2341; cursor: pointer;" />
+                      <span>Hanya 1 Hari Perkuliahan</span>
+                    </label>
+                  </div>
+
+                  <div class="form-grid-2">
+                    <div>
+                      <label for="leave-input-start-date" class="form-label" style="font-size: 12px; color: #475569;">
+                        Tanggal Mulai <span style="color: #e11d48;">*</span>
+                      </label>
+                      <input id="leave-input-start-date" type="date" class="form-input" required />
+                    </div>
+
+                    <div id="leave-end-date-wrapper" style="opacity: 0.5; pointer-events: none;">
+                      <label for="leave-input-end-date" class="form-label" style="font-size: 12px; color: #475569;">
+                        Tanggal Selesai (Opsional)
+                      </label>
+                      <input id="leave-input-end-date" type="date" class="form-input" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 4. ALASAN KETIDAKHADIRAN -->
+                <div style="margin-bottom: 24px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label for="leave-input-reason" class="form-label" style="margin-bottom: 0;">
+                      4. Alasan / Keterangan Lengkap <span style="color: #e11d48;">*</span>
+                    </label>
+                    <span id="leave-reason-count" style="font-size: 11.5px; font-weight: 600; color: #64748b;">
+                      0 / 500 karakter (min. 10)
+                    </span>
+                  </div>
+                  <textarea 
+                    id="leave-input-reason" 
+                    rows="4" 
+                    maxlength="500"
+                    placeholder="Uraikan alasan ketidakhadiran dengan jelas, sopan, dan terperinci sesuai ketentuan universitas..." 
+                    class="form-input" 
+                    style="line-height: 1.55; resize: vertical;"
+                    required
+                  ></textarea>
+                  <p id="error-leave-reason" class="form-helper-error hidden">
+                    Alasan wajib diisi minimal 10 karakter.
+                  </p>
+                </div>
+
+                <!-- 5. UNGGAH BUKTI DOKUMEN (PDF, Word, Foto) -->
+                <div style="margin-bottom: 26px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                    <label class="form-label" style="margin-bottom: 0;">
+                      5. Unggah Dokumen Bukti Sah <span style="color: #e11d48;">*</span>
+                    </label>
+                    <span style="font-size: 11.5px; font-weight: 700; color: #0284c7; background: #e0f2fe; padding: 2px 10px; border-radius: 9999px;">
+                      Maks. 10 MB · PDF, Word, JPG, PNG, WEBP
+                    </span>
+                  </div>
+
+                  <!-- Dropzone Area -->
+                  <div id="leave-dropzone" class="leave-upload-dropzone">
+                    <input 
+                      type="file" 
+                      id="leave-file-input" 
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp" 
+                      class="hidden" 
+                    />
+                    
+                    <div id="leave-dropzone-prompt">
+                      <div class="dropzone-icon-circle">
+                        <i data-lucide="upload-cloud" style="width: 28px; height: 28px; color: #0b2341;"></i>
+                      </div>
+                      <div style="font-size: 14px; font-weight: 700; color: #0b2341; margin-top: 10px;">
+                        Tarik & Lepaskan Dokumen Bukti ke Sini
+                      </div>
+                      <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+                        atau <button type="button" id="btn-browse-leave-file" class="text-link-btn">Pilih Berkas dari Perangkat</button>
+                      </div>
+                      <div style="display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap;">
+                        <span class="file-chip"><i data-lucide="file-text" style="width: 12px; height: 12px; color: #dc2626;"></i> PDF (.pdf)</span>
+                        <span class="file-chip"><i data-lucide="file-check" style="width: 12px; height: 12px; color: #2563eb;"></i> Word (.doc, .docx)</span>
+                        <span class="file-chip"><i data-lucide="image" style="width: 12px; height: 12px; color: #16a34a;"></i> Foto (JPG, PNG)</span>
+                      </div>
+                    </div>
+
+                    <!-- Live File Preview Box (Hidden until file selected) -->
+                    <div id="leave-file-preview-box" class="hidden" style="padding: 16px; background: #ffffff; border-radius: 14px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: left;">
+                      <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+                        <!-- File Icon / Thumbnail -->
+                        <div id="preview-thumbnail-container" style="width: 52px; height: 52px; border-radius: 12px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #e2e8f0;">
+                          <i id="preview-generic-icon" data-lucide="file" style="width: 26px; height: 26px; color: #475569;"></i>
+                          <img id="preview-image-element" src="" alt="Thumbnail" class="hidden" style="width: 100%; height: 100%; object-fit: cover;" />
+                        </div>
+                        <div style="min-width: 0;">
+                          <div id="preview-file-name" style="font-size: 13.5px; font-weight: 700; color: #0b2341; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">
+                            dokumen.pdf
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px;">
+                            <span id="preview-file-size" style="font-size: 11px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 6px;">
+                              0 KB
+                            </span>
+                            <span id="preview-file-badge" style="font-size: 11px; font-weight: 700; color: #059669; background: #d1fae5; padding: 2px 8px; border-radius: 6px;">
+                              Siap Diunggah
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                        <button type="button" id="btn-remove-leave-file" class="btn-icon-danger" title="Hapus Berkas">
+                          <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <p id="error-leave-file" class="form-helper-error hidden">
+                    Bukti dokumen surat izin / sakit / dispensasi wajib diunggah.
+                  </p>
+                </div>
+
+                <!-- 6. PERNYATAAN KEJUJURAN -->
+                <div style="margin-bottom: 26px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 14px 18px;">
+                  <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                    <input type="checkbox" id="leave-check-statement" required style="width: 18px; height: 18px; margin-top: 2px; accent-color: #0b2341; cursor: pointer;" />
+                    <span style="font-size: 12.5px; color: #78350f; line-height: 1.5;">
+                      <strong>Pernyataan Integritas Akademik:</strong> Saya menyatakan bahwa surat dan keterangan bukti yang diajukan adalah sah dan benar. Segala bentuk pemalsuan surat sakit/izin dikenakan sanksi tata tertib mahasiswa UPNVJ.
+                    </span>
+                  </label>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
+                  <button type="button" id="btn-reset-leave-form" style="padding: 12px 22px; border-radius: 12px; font-size: 13.5px; font-weight: 700; color: #475569; background: #f1f5f9; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s;">
+                    Atur Ulang
+                  </button>
+                  <button type="submit" id="btn-submit-leave" class="btn-primary-block" style="width: auto; padding: 12px 32px;">
+                    <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+                    <span>Kirim Pengajuan Surat</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- TAB 2: RIWAYAT PENGAJUAN SAYA -->
+          <div id="leave-tab-content-history" class="leave-tab-panel hidden">
+            <!-- Filter Bar -->
+            <div class="card-portal" style="padding: 18px 24px; background: #ffffff; box-shadow: var(--shadow-sm); margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 12px; font-weight: 700; color: #475569; margin-right: 4px;">Status:</span>
+                <button type="button" class="btn-filter-history active" data-filter="all">Semua</button>
+                <button type="button" class="btn-filter-history" data-filter="Menunggu">Menunggu</button>
+                <button type="button" class="btn-filter-history" data-filter="Disetujui">Disetujui</button>
+                <button type="button" class="btn-filter-history" data-filter="Ditolak">Ditolak</button>
+              </div>
+
+              <div style="font-size: 12px; color: #64748b; font-weight: 600;">
+                <span id="history-total-count">0</span> Pengajuan Tercatat
+              </div>
+            </div>
+
+            <!-- List of Submissions -->
+            <div id="leave-history-list" style="display: flex; flex-direction: column; gap: 14px;">
+              <!-- Populated dynamically via js -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
            VIEW 8: 404 HALAMAN TIDAK DITEMUKAN
            ==================================================================== -->
       <section id="view-notfound" class="app-view hidden">
@@ -885,6 +1186,10 @@
       <a href="#/absensi" class="nav-item" data-route="absensi">
         <div class="nav-icon-wrapper"><i data-lucide="qr-code" style="width: 20px; height: 20px;"></i></div>
         <span>Absensi</span>
+      </a>
+      <a href="#/pengajuan" class="nav-item" data-route="pengajuan">
+        <div class="nav-icon-wrapper"><i data-lucide="file-text" style="width: 20px; height: 20px;"></i></div>
+        <span>Surat</span>
       </a>
       <a href="#/riwayat" class="nav-item" data-route="riwayat">
         <div class="nav-icon-wrapper"><i data-lucide="history" style="width: 20px; height: 20px;"></i></div>
@@ -969,6 +1274,37 @@
         <button id="btn-close-proof" type="button" class="btn-primary-block" style="padding: 12px;">
           Selesai & Tutup Bukti
         </button>
+      </div>
+    </div>
+
+    <!-- Modal Pratinjau Detail & Bukti Pengajuan Mahasiswa -->
+    <div id="student-leave-modal" class="hidden" style="position: fixed; inset: 0; z-index: 75; background: rgba(7, 23, 44, 0.75); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;" role="dialog" aria-modal="true">
+      <div class="card-portal" style="max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 28px; background: #ffffff; box-shadow: var(--shadow-xl); position: relative;">
+        <!-- Modal Header -->
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px;">
+          <div>
+            <div id="modal-leave-type-badge" style="display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 800; margin-bottom: 6px;">
+              Surat Sakit
+            </div>
+            <h3 style="font-size: 19px; font-weight: 800; color: #0b2341; margin: 0;">Detail Pengajuan Ketidakhadiran</h3>
+            <span id="modal-leave-created" style="font-size: 12px; color: #64748b; margin-top: 2px; display: block;">Diajukan: -</span>
+          </div>
+          <button id="btn-close-student-leave-modal" type="button" class="btn-icon-subtle" title="Tutup Modal" aria-label="Tutup">
+            <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+          </button>
+        </div>
+
+        <!-- Detail Content -->
+        <div id="student-leave-modal-body">
+          <!-- Populated dynamically via js/app.js -->
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="margin-top: 24px; pt-4; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+          <button id="btn-close-leave-modal-footer" type="button" class="btn-primary-block" style="width: auto; padding: 10px 24px;">
+            Tutup Jendela
+          </button>
+        </div>
       </div>
     </div>
 

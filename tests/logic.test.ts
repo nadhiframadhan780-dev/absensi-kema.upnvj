@@ -11,7 +11,12 @@ import {
   isDuplicateAttendance,
   generateCsvContent,
   generateDynamicQrPayload,
-  validateDynamicQrPayload
+  validateDynamicQrPayload,
+  validateLeaveSubmission,
+  getFileCategory,
+  formatLeaveStatusBadge,
+  ALLOWED_LEAVE_EXTENSIONS,
+  MAX_LEAVE_FILE_SIZE_BYTES
 } from '../js/logic.js';
 import { FACULTIES, getFacultyById, getProdiList, FK_SPECIAL_NOTE } from '../js/data.js';
 
@@ -184,3 +189,115 @@ test('QR Code Dinamis 30 Detik: Fallback Barcode 1D', () => {
   const invalidVal = validateDynamicQrPayload('BukanNIM123');
   assert.equal(invalidVal.valid, false);
 });
+
+test('Pengajuan Surat: Kategori Berkas (PDF, Word, Image)', () => {
+  assert.equal(getFileCategory('surat_dokter.pdf', 'application/pdf'), 'pdf');
+  assert.equal(getFileCategory('dispensasi.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 'word');
+  assert.equal(getFileCategory('izin_lomba.doc', 'application/msword'), 'word');
+  assert.equal(getFileCategory('bukti_rawat.jpg', 'image/jpeg'), 'image');
+  assert.equal(getFileCategory('surat.png', 'image/png'), 'image');
+  assert.equal(getFileCategory('bukti.webp', 'image/webp'), 'image');
+  assert.equal(getFileCategory('program.exe', 'application/octet-stream'), 'other');
+});
+
+test('Pengajuan Surat: Validasi Berhasil untuk Sakit, Izin, dan Dispensasi', () => {
+  // 1. Sakit dengan bukti PDF
+  const resSakit = validateLeaveSubmission({
+    jenis: 'Sakit',
+    mataKuliah: 'Pemrograman Web',
+    tanggalMulai: '2026-11-04',
+    alasan: 'Mengalami demam tinggi dan radang tenggorokan sesuai rekomendasi dokter.',
+    fileName: 'surat_sakit_rs_fatmawati.pdf',
+    fileSize: 500 * 1024,
+    fileMimeType: 'application/pdf'
+  });
+  assert.equal(resSakit.valid, true);
+  assert.equal(resSakit.normalizedJenis, 'Sakit');
+  assert.equal(resSakit.fileCategory, 'pdf');
+
+  // 2. Izin dengan surat Word (.docx)
+  const resIzin = validateLeaveSubmission({
+    jenis: 'Izin',
+    mataKuliah: 'Basis Data Lanjut',
+    tanggalMulai: '2026-11-05',
+    tanggalSelesai: '2026-11-06',
+    alasan: 'Menghadiri pernikahan keluarga inti di luar kota selama dua hari.',
+    fileName: 'surat_izin_orang_tua.docx',
+    fileSize: 200 * 1024,
+    fileMimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
+  assert.equal(resIzin.valid, true);
+  assert.equal(resIzin.normalizedJenis, 'Izin');
+  assert.equal(resIzin.fileCategory, 'word');
+
+  // 3. Dispensasi dengan bukti Gambar (.jpg)
+  const resDispensasi = validateLeaveSubmission({
+    jenis: 'Dispensasi',
+    mataKuliah: 'Kecerdasan Buatan',
+    tanggalMulai: '2026-11-10',
+    alasan: 'Mewakili kontingen universitas dalam kompetisi Gemastik Nasional 2026.',
+    fileName: 'surat_tugas_rektorat.jpg',
+    fileSize: 850 * 1024,
+    fileMimeType: 'image/jpeg'
+  });
+  assert.equal(resDispensasi.valid, true);
+  assert.equal(resDispensasi.normalizedJenis, 'Dispensasi');
+  assert.equal(resDispensasi.fileCategory, 'image');
+});
+
+test('Pengajuan Surat: Penolakan Validasi Error Kasus Negatif', () => {
+  // Jenis tidak valid
+  const invalidJenis = validateLeaveSubmission({
+    jenis: 'Bolos',
+    mataKuliah: 'Web',
+    tanggalMulai: '2026-11-04',
+    alasan: 'Alasan yang panjang lebih dari sepuluh karakter',
+    fileName: 'file.pdf',
+    fileSize: 1000
+  });
+  assert.equal(invalidJenis.valid, false);
+  assert.ok(invalidJenis.error.includes('Jenis pengajuan'));
+
+  // Alasan terlalu pendek (<10 karakter)
+  const shortReason = validateLeaveSubmission({
+    jenis: 'Sakit',
+    mataKuliah: 'Sistem Operasi',
+    tanggalMulai: '2026-11-04',
+    alasan: 'Sakit flu',
+    fileName: 'bukti.pdf',
+    fileSize: 1000
+  });
+  assert.equal(shortReason.valid, false);
+  assert.ok(shortReason.error.includes('Alasan pengajuan'));
+
+  // Format berkas ditolak (misal .exe)
+  const invalidExt = validateLeaveSubmission({
+    jenis: 'Izin',
+    mataKuliah: 'Jaringan Komputer',
+    tanggalMulai: '2026-11-04',
+    alasan: 'Keterangan izin yang sudah cukup panjang',
+    fileName: 'virus.exe',
+    fileSize: 1000
+  });
+  assert.equal(invalidExt.valid, false);
+  assert.ok(invalidExt.error.includes('tidak didukung'));
+
+  // Ukuran berkas melebihi 10MB
+  const tooLarge = validateLeaveSubmission({
+    jenis: 'Dispensasi',
+    mataKuliah: 'Struktur Data',
+    tanggalMulai: '2026-11-04',
+    alasan: 'Keterangan izin dispensasi kegiatan kampus',
+    fileName: 'video_besar.pdf',
+    fileSize: 15 * 1024 * 1024
+  });
+  assert.equal(tooLarge.valid, false);
+  assert.ok(tooLarge.error.includes('melebihi batas maksimal'));
+});
+
+test('Pengajuan Surat: Format Badge Status', () => {
+  assert.equal(formatLeaveStatusBadge('Menunggu').text, 'Menunggu Persetujuan');
+  assert.equal(formatLeaveStatusBadge('Disetujui').text, 'Disetujui');
+  assert.equal(formatLeaveStatusBadge('Ditolak').text, 'Ditolak');
+});
+

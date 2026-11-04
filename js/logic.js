@@ -264,3 +264,164 @@ export function validateDynamicQrPayload(scannedText, currentTimeMs = Date.now()
     reason: `Format kode ("${cleanText}") tidak dikenali sebagai QR Mahasiswa maupun Barcode NIM.`
   };
 }
+
+/**
+ * Validasi Ekstensi dan Tipe Berkas Bukti (PDF, Word, JPG, PNG, WEBP)
+ */
+export const ALLOWED_LEAVE_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'];
+export const MAX_LEAVE_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export function getFileCategory(fileName = '', mimeType = '') {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const mime = (mimeType || '').toLowerCase();
+
+  if (ext === 'pdf' || mime === 'application/pdf') {
+    return 'pdf';
+  }
+  if (['doc', 'docx'].includes(ext) || mime.includes('word') || mime.includes('officedocument')) {
+    return 'word';
+  }
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || mime.startsWith('image/')) {
+    return 'image';
+  }
+  return 'other';
+}
+
+/**
+ * Validasi Komprehensif Pengajuan Surat Izin / Sakit / Dispensasi Mahasiswa
+ */
+export function validateLeaveSubmission({
+  jenis,
+  mataKuliah,
+  tanggalMulai,
+  tanggalSelesai,
+  alasan,
+  fileName,
+  fileSize,
+  fileMimeType
+}) {
+  // 1. Validasi Jenis Pengajuan
+  const validTypes = ['Sakit', 'Izin', 'Dispensasi'];
+  const normalizedJenis = validTypes.find(t => t.toLowerCase() === (jenis || '').trim().toLowerCase());
+  if (!normalizedJenis) {
+    return {
+      valid: false,
+      error: 'Jenis pengajuan wajib dipilih (Sakit, Izin, atau Dispensasi).'
+    };
+  }
+
+  // 2. Validasi Mata Kuliah
+  if (!mataKuliah || typeof mataKuliah !== 'string' || mataKuliah.trim().length < 3) {
+    return {
+      valid: false,
+      error: 'Mata kuliah wajib diisi (minimal 3 karakter).'
+    };
+  }
+
+  // 3. Validasi Tanggal
+  if (!tanggalMulai || typeof tanggalMulai !== 'string') {
+    return {
+      valid: false,
+      error: 'Tanggal mulai izin wajib ditentukan.'
+    };
+  }
+  const startDate = new Date(tanggalMulai);
+  if (isNaN(startDate.getTime())) {
+    return {
+      valid: false,
+      error: 'Format tanggal mulai tidak valid.'
+    };
+  }
+
+  if (tanggalSelesai) {
+    const endDate = new Date(tanggalSelesai);
+    if (isNaN(endDate.getTime())) {
+      return {
+        valid: false,
+        error: 'Format tanggal selesai tidak valid.'
+      };
+    }
+    if (endDate < startDate) {
+      return {
+        valid: false,
+        error: 'Tanggal selesai tidak boleh sebelum tanggal mulai.'
+      };
+    }
+  }
+
+  // 4. Validasi Alasan Pengajuan
+  if (!alasan || typeof alasan !== 'string' || alasan.trim().length < 10) {
+    return {
+      valid: false,
+      error: 'Alasan pengajuan wajib diuraikan dengan jelas (minimal 10 karakter).'
+    };
+  }
+
+  // 5. Validasi Dokumen Bukti
+  if (!fileName || typeof fileName !== 'string') {
+    return {
+      valid: false,
+      error: 'Bukti surat (PDF, Word, atau Gambar JPG/PNG) wajib diunggah.'
+    };
+  }
+
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  if (!ALLOWED_LEAVE_EXTENSIONS.includes(ext)) {
+    return {
+      valid: false,
+      error: `Format berkas .${ext} tidak didukung. Harap unggah dokumen PDF, Word (.doc, .docx), atau Foto (JPG, PNG, WEBP).`
+    };
+  }
+
+  if (typeof fileSize === 'number' && fileSize > MAX_LEAVE_FILE_SIZE_BYTES) {
+    const sizeMb = (fileSize / (1024 * 1024)).toFixed(1);
+    return {
+      valid: false,
+      error: `Ukuran berkas (${sizeMb} MB) melebihi batas maksimal 10 MB.`
+    };
+  }
+
+  const category = getFileCategory(fileName, fileMimeType);
+
+  return {
+    valid: true,
+    normalizedJenis,
+    fileCategory: category,
+    fileExt: ext
+  };
+}
+
+/**
+ * Format Badge Status Pengajuan Surat
+ */
+export function formatLeaveStatusBadge(status = 'Menunggu') {
+  const norm = (status || '').toLowerCase();
+  switch (norm) {
+    case 'disetujui':
+      return {
+        text: 'Disetujui',
+        bg: '#d1fae5',
+        color: '#065f46',
+        borderColor: '#a7f3d0',
+        icon: 'check-circle'
+      };
+    case 'ditolak':
+      return {
+        text: 'Ditolak',
+        bg: '#fee2e2',
+        color: '#991b1b',
+        borderColor: '#fecaca',
+        icon: 'x-circle'
+      };
+    case 'menunggu':
+    default:
+      return {
+        text: 'Menunggu Persetujuan',
+        bg: '#fef3c7',
+        color: '#92400e',
+        borderColor: '#fde68a',
+        icon: 'clock'
+      };
+  }
+}
+

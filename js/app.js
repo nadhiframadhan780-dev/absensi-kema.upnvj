@@ -19,6 +19,8 @@ import {
   collection,
   query,
   where,
+  orderBy,
+  onSnapshot,
   getDocs,
   addDoc,
   serverTimestamp,
@@ -46,7 +48,12 @@ import {
   isDuplicateAttendance,
   generateCsvContent,
   generateDynamicQrPayload,
-  validateDynamicQrPayload
+  validateDynamicQrPayload,
+  validateLeaveSubmission,
+  getFileCategory,
+  formatLeaveStatusBadge,
+  ALLOWED_LEAVE_EXTENSIONS,
+  MAX_LEAVE_FILE_SIZE_BYTES
 } from './logic.js';
 
 import {
@@ -68,6 +75,12 @@ const state = {
   currentUser: null,
   studentProfile: null,
   attendanceList: [],
+  leaveRequests: [],
+  selectedLeaveFile: null,
+  selectedLeaveType: 'Sakit',
+  leaveHistoryFilter: 'all',
+  isLeaveInitialized: false,
+  unsubscribeLeave: null,
   isRegisterMode: false,
   html5QrCode: null,
   isScanning: false,
@@ -96,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initUI();
   setupGlobalEventListeners();
   initAuthObserver();
+  initPengajuanEventListeners();
   initRouter();
   populateCourseSuggestions();
 });
@@ -116,6 +130,11 @@ function setupGlobalEventListeners() {
 
   const closeProofBtn = document.getElementById('btn-close-proof');
   if (closeProofBtn) closeProofBtn.addEventListener('click', closeProofModal);
+
+  const closeLeaveModalBtn = document.getElementById('btn-close-student-leave-modal');
+  const closeLeaveModalFooterBtn = document.getElementById('btn-close-leave-modal-footer');
+  if (closeLeaveModalBtn) closeLeaveModalBtn.addEventListener('click', closeStudentLeaveModal);
+  if (closeLeaveModalFooterBtn) closeLeaveModalFooterBtn.addEventListener('click', closeStudentLeaveModal);
 
   window.addEventListener('hashchange', () => {
     handleNavigation(window.location.hash);
@@ -145,7 +164,7 @@ function initAuthObserver() {
       state.attendanceList = [];
       updateNavbarUserInfo();
 
-      const protectedRoutes = ['#/beranda', '#/absensi', '#/riwayat', '#/profil'];
+      const protectedRoutes = ['#/beranda', '#/absensi', '#/pengajuan', '#/riwayat', '#/profil'];
       if (protectedRoutes.includes(window.location.hash)) {
         navigateTo('#/login');
         showToast('warning', 'Akses Terbatas', 'Silakan masuk terlebih dahulu untuk mengakses fitur ini.');
@@ -270,7 +289,7 @@ function handleNavigation(hash) {
   const cleanHash = hash.split('?')[0] || '#/';
   state.currentRoute = cleanHash;
 
-  const protectedRoutes = ['#/beranda', '#/absensi', '#/riwayat', '#/profil'];
+  const protectedRoutes = ['#/beranda', '#/absensi', '#/pengajuan', '#/riwayat', '#/profil'];
   if (protectedRoutes.includes(cleanHash) && !state.currentUser) {
     navigateTo('#/login');
     showToast('warning', 'Wajib Masuk', 'Silakan masuk dengan akun mahasiswa terlebih dahulu.');
@@ -325,6 +344,7 @@ function renderCurrentView() {
     '#/login': 'view-login',
     '#/beranda': 'view-beranda',
     '#/absensi': 'view-absensi',
+    '#/pengajuan': 'view-pengajuan',
     '#/riwayat': 'view-riwayat',
     '#/profil': 'view-profil'
   };
@@ -355,6 +375,9 @@ function renderCurrentView() {
       break;
     case '#/absensi':
       renderAbsensiView();
+      break;
+    case '#/pengajuan':
+      renderPengajuanView();
       break;
     case '#/riwayat':
       renderRiwayatView();
@@ -2003,3 +2026,883 @@ function populateCourseSuggestions() {
   if (!datalist) return;
   datalist.innerHTML = DEFAULT_COURSES.map(course => `<option value="${escapeHtml(course)}">`).join('');
 }
+
+/**
+ * ============================================================================
+ * 8. CONTROLLER: PENGAJUAN SURAT SAKIT, IZIN, & DISPENSASI MAHASISWA
+ * ============================================================================
+ */
+function renderPengajuanView() {
+  initPengajuanEventListeners();
+  setDefaultLeaveDates();
+  listenStudentLeaveRequests();
+}
+
+/**
+ * Inisialisasi event listener formulir pengajuan & tab
+ */
+function initPengajuanEventListeners() {
+  if (state.isLeaveInitialized) return;
+  state.isLeaveInitialized = true;
+
+  // 1. Selector Jenis Pengajuan (Radio Card)
+  document.querySelectorAll('.leave-type-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.leave-type-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      const radio = card.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+      state.selectedLeaveType = card.dataset.type || 'Sakit';
+    });
+  });
+
+  // 2. Tab Navigation (Form vs History)
+  const tabBtnForm = document.getElementById('tab-btn-leave-form');
+  const tabBtnHistory = document.getElementById('tab-btn-leave-history');
+  const panelForm = document.getElementById('leave-tab-content-form');
+  const panelHistory = document.getElementById('leave-tab-content-history');
+
+  if (tabBtnForm && tabBtnHistory && panelForm && panelHistory) {
+    tabBtnForm.addEventListener('click', () => {
+      tabBtnForm.classList.add('active');
+      tabBtnHistory.classList.remove('active');
+      panelForm.classList.remove('hidden');
+      panelHistory.classList.add('hidden');
+    });
+
+    tabBtnHistory.addEventListener('click', () => {
+      tabBtnHistory.classList.add('active');
+      tabBtnForm.classList.remove('active');
+      panelHistory.classList.remove('hidden');
+      panelForm.classList.add('hidden');
+      renderLeaveHistoryList();
+    });
+  }
+
+  // 3. Toggle "Hanya 1 Hari Perkuliahan"
+  const checkOneDay = document.getElementById('leave-check-oneday');
+  const endDateWrapper = document.getElementById('leave-end-date-wrapper');
+  const startDateInput = document.getElementById('leave-input-start-date');
+  const endDateInput = document.getElementById('leave-input-end-date');
+
+  if (checkOneDay && endDateWrapper && startDateInput && endDateInput) {
+    checkOneDay.addEventListener('change', () => {
+      if (checkOneDay.checked) {
+        endDateWrapper.style.opacity = '0.5';
+        endDateWrapper.style.pointerEvents = 'none';
+        endDateInput.value = startDateInput.value;
+      } else {
+        endDateWrapper.style.opacity = '1';
+        endDateWrapper.style.pointerEvents = 'auto';
+        if (!endDateInput.value) {
+          endDateInput.value = startDateInput.value;
+        }
+      }
+    });
+
+    startDateInput.addEventListener('change', () => {
+      if (checkOneDay.checked) {
+        endDateInput.value = startDateInput.value;
+      }
+      if (endDateInput.value && endDateInput.value < startDateInput.value) {
+        endDateInput.value = startDateInput.value;
+      }
+    });
+  }
+
+  // 4. Character Counter Alasan
+  const reasonTextarea = document.getElementById('leave-input-reason');
+  const reasonCountEl = document.getElementById('leave-reason-count');
+  const reasonError = document.getElementById('error-leave-reason');
+
+  if (reasonTextarea && reasonCountEl) {
+    reasonTextarea.addEventListener('input', () => {
+      const len = reasonTextarea.value.length;
+      reasonCountEl.textContent = `${len} / 500 karakter (min. 10)`;
+      if (len >= 10) {
+        reasonCountEl.style.color = '#059669';
+        if (reasonError) reasonError.classList.add('hidden');
+      } else {
+        reasonCountEl.style.color = '#64748b';
+      }
+    });
+  }
+
+  // 5. Berkas Bukti: Dropzone & File Input
+  const fileInput = document.getElementById('leave-file-input');
+  const dropzone = document.getElementById('leave-dropzone');
+  const btnBrowse = document.getElementById('btn-browse-leave-file');
+  const btnRemoveFile = document.getElementById('btn-remove-leave-file');
+
+  if (btnBrowse && fileInput) {
+    btnBrowse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+  }
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-remove-leave-file') || e.target.closest('#leave-file-preview-box')) return;
+      fileInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('drag-active');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('drag-active');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files[0]) {
+        handleLeaveFileSelection(dt.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        handleLeaveFileSelection(fileInput.files[0]);
+      }
+    });
+  }
+
+  if (btnRemoveFile) {
+    btnRemoveFile.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetLeaveFileInput();
+    });
+  }
+
+  // 6. Reset Form Button
+  const btnReset = document.getElementById('btn-reset-leave-form');
+  if (btnReset) {
+    btnReset.addEventListener('click', resetLeaveForm);
+  }
+
+  // 7. Filter Riwayat Pengajuan
+  document.querySelectorAll('.btn-filter-history').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-filter-history').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.leaveHistoryFilter = btn.dataset.filter || 'all';
+      renderLeaveHistoryList();
+    });
+  });
+
+  // 8. Submit Handler
+  const form = document.getElementById('form-leave-request');
+  if (form) {
+    form.addEventListener('submit', handleLeaveFormSubmit);
+  }
+}
+
+/**
+ * Atur tanggal awal default ke hari ini
+ */
+function setDefaultLeaveDates() {
+  const startDateInput = document.getElementById('leave-input-start-date');
+  const endDateInput = document.getElementById('leave-input-end-date');
+  if (startDateInput && !startDateInput.value) {
+    const today = new Date().toISOString().split('T')[0];
+    startDateInput.value = today;
+    if (endDateInput && !endDateInput.value) {
+      endDateInput.value = today;
+    }
+  }
+}
+
+/**
+ * Handle seleksi berkas bukti dari input atau drag-and-drop
+ */
+function handleLeaveFileSelection(file) {
+  if (!file) return;
+
+  const fileName = file.name;
+  const fileSize = file.size;
+  const mimeType = file.type;
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+
+  const fileError = document.getElementById('error-leave-file');
+
+  if (!ALLOWED_LEAVE_EXTENSIONS.includes(ext)) {
+    if (fileError) {
+      fileError.textContent = `Format berkas .${ext} tidak didukung. Harap unggah dokumen PDF, Word (.doc, .docx), atau Gambar (JPG, PNG, WEBP).`;
+      fileError.classList.remove('hidden');
+    }
+    showToast('warning', 'Format Berkas Ditolak', `Format .${ext} tidak diizinkan. Gunakan PDF, Word, atau Gambar.`);
+    resetLeaveFileInput();
+    return;
+  }
+
+  if (fileSize > MAX_LEAVE_FILE_SIZE_BYTES) {
+    const sizeMb = (fileSize / (1024 * 1024)).toFixed(1);
+    if (fileError) {
+      fileError.textContent = `Ukuran berkas (${sizeMb} MB) melebihi batas 10 MB.`;
+      fileError.classList.remove('hidden');
+    }
+    showToast('warning', 'Ukuran Terlalu Besar', `Maksimal ukuran berkas adalah 10 MB (berkas Anda: ${sizeMb} MB).`);
+    resetLeaveFileInput();
+    return;
+  }
+
+  if (fileError) fileError.classList.add('hidden');
+  state.selectedLeaveFile = file;
+
+  // Perbarui UI preview box
+  const promptBox = document.getElementById('leave-dropzone-prompt');
+  const previewBox = document.getElementById('leave-file-preview-box');
+  const fileNameEl = document.getElementById('preview-file-name');
+  const fileSizeEl = document.getElementById('preview-file-size');
+  const fileBadgeEl = document.getElementById('preview-file-badge');
+  const genericIcon = document.getElementById('preview-generic-icon');
+  const imageElement = document.getElementById('preview-image-element');
+
+  if (promptBox) promptBox.classList.add('hidden');
+  if (previewBox) previewBox.classList.remove('hidden');
+
+  if (fileNameEl) fileNameEl.textContent = fileName;
+  if (fileSizeEl) fileSizeEl.textContent = formatBytes(fileSize);
+
+  const category = getFileCategory(fileName, mimeType);
+
+  if (fileBadgeEl) {
+    if (category === 'pdf') {
+      fileBadgeEl.textContent = 'Dokumen PDF';
+      fileBadgeEl.style.background = '#fee2e2';
+      fileBadgeEl.style.color = '#dc2626';
+    } else if (category === 'word') {
+      fileBadgeEl.textContent = 'Dokumen Word';
+      fileBadgeEl.style.background = '#dbeafe';
+      fileBadgeEl.style.color = '#2563eb';
+    } else {
+      fileBadgeEl.textContent = 'Gambar Bukti';
+      fileBadgeEl.style.background = '#d1fae5';
+      fileBadgeEl.style.color = '#059669';
+    }
+  }
+
+  if (category === 'image') {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (imageElement) {
+        imageElement.src = e.target.result;
+        imageElement.classList.remove('hidden');
+      }
+      if (genericIcon) genericIcon.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  } else {
+    if (imageElement) imageElement.classList.add('hidden');
+    if (genericIcon) {
+      genericIcon.classList.remove('hidden');
+      if (category === 'pdf') {
+        genericIcon.setAttribute('data-lucide', 'file-text');
+        genericIcon.style.color = '#dc2626';
+      } else if (category === 'word') {
+        genericIcon.setAttribute('data-lucide', 'file-check');
+        genericIcon.style.color = '#2563eb';
+      } else {
+        genericIcon.setAttribute('data-lucide', 'file');
+        genericIcon.style.color = '#475569';
+      }
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+}
+
+function resetLeaveFileInput() {
+  state.selectedLeaveFile = null;
+  const fileInput = document.getElementById('leave-file-input');
+  if (fileInput) fileInput.value = '';
+
+  const promptBox = document.getElementById('leave-dropzone-prompt');
+  const previewBox = document.getElementById('leave-file-preview-box');
+  const imageElement = document.getElementById('preview-image-element');
+  const genericIcon = document.getElementById('preview-generic-icon');
+
+  if (promptBox) promptBox.classList.remove('hidden');
+  if (previewBox) previewBox.classList.add('hidden');
+  if (imageElement) {
+    imageElement.src = '';
+    imageElement.classList.add('hidden');
+  }
+  if (genericIcon) genericIcon.classList.remove('hidden');
+}
+
+function resetLeaveForm() {
+  const form = document.getElementById('form-leave-request');
+  if (form) form.reset();
+
+  state.selectedLeaveType = 'Sakit';
+  document.querySelectorAll('.leave-type-card').forEach(c => {
+    if (c.dataset.type === 'Sakit') c.classList.add('selected');
+    else c.classList.remove('selected');
+  });
+
+  const checkOneDay = document.getElementById('leave-check-oneday');
+  if (checkOneDay) checkOneDay.checked = true;
+
+  const endDateWrapper = document.getElementById('leave-end-date-wrapper');
+  if (endDateWrapper) {
+    endDateWrapper.style.opacity = '0.5';
+    endDateWrapper.style.pointerEvents = 'none';
+  }
+
+  const reasonCountEl = document.getElementById('leave-reason-count');
+  if (reasonCountEl) reasonCountEl.textContent = '0 / 500 karakter (min. 10)';
+
+  resetLeaveFileInput();
+  setDefaultLeaveDates();
+}
+
+/**
+ * Handle pengiriman formulir pengajuan surat izin / sakit / dispensasi
+ */
+async function handleLeaveFormSubmit(e) {
+  e.preventDefault();
+
+  if (!state.currentUser) {
+    showToast('warning', 'Wajib Masuk', 'Silakan masuk dengan akun mahasiswa UPNVJ Anda terlebih dahulu.');
+    navigateTo('#/login');
+    return;
+  }
+
+  const jenis = state.selectedLeaveType || 'Sakit';
+  const matkulInput = document.getElementById('leave-input-matkul');
+  const dosenInput = document.getElementById('leave-input-dosen');
+  const startDateInput = document.getElementById('leave-input-start-date');
+  const endDateInput = document.getElementById('leave-input-end-date');
+  const reasonInput = document.getElementById('leave-input-reason');
+  const statementCheck = document.getElementById('leave-check-statement');
+  const oneDayCheck = document.getElementById('leave-check-oneday');
+  const btnSubmit = document.getElementById('btn-submit-leave');
+
+  const mataKuliah = matkulInput ? matkulInput.value.trim() : '';
+  const dosen = dosenInput ? dosenInput.value.trim() : '';
+  const tanggalMulai = startDateInput ? startDateInput.value : '';
+  const tanggalSelesai = (oneDayCheck && oneDayCheck.checked) ? tanggalMulai : (endDateInput ? endDateInput.value : tanggalMulai);
+  const alasan = reasonInput ? reasonInput.value.trim() : '';
+
+  // 1. Validasi via Pure Logic Helper
+  const validation = validateLeaveSubmission({
+    jenis,
+    mataKuliah,
+    tanggalMulai,
+    tanggalSelesai,
+    alasan,
+    fileName: state.selectedLeaveFile ? state.selectedLeaveFile.name : '',
+    fileSize: state.selectedLeaveFile ? state.selectedLeaveFile.size : 0,
+    fileMimeType: state.selectedLeaveFile ? state.selectedLeaveFile.type : ''
+  });
+
+  if (!validation.valid) {
+    showToast('warning', 'Validasi Pengajuan', validation.error);
+    if (!state.selectedLeaveFile) {
+      const fileError = document.getElementById('error-leave-file');
+      if (fileError) fileError.classList.remove('hidden');
+    }
+    return;
+  }
+
+  // 2. Validasi Pernyataan Kejujuran
+  if (!statementCheck || !statementCheck.checked) {
+    showToast('warning', 'Persetujuan Wajib', 'Anda wajib menyetujui pernyataan integritas akademik sebelum mengirim.');
+    return;
+  }
+
+  setButtonLoading(btnSubmit, true);
+
+  try {
+    const file = state.selectedLeaveFile;
+    let finalLampiranURL = '';
+
+    // 3. Unggah Berkas Bukti (Firebase Storage atau Base64 Fallback yang Handal)
+    try {
+      const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storagePath = `leave_letters/${state.currentUser.uid}/${safeFileName}`;
+      const storageReference = ref(storage, storagePath);
+      const snapshot = await uploadBytes(storageReference, file);
+      finalLampiranURL = await getDownloadURL(snapshot.ref);
+    } catch (storageError) {
+      console.warn('Firebase Storage offline, menggunakan konversi data URL:', storageError?.message || storageError);
+      finalLampiranURL = await readFileAsDataUrl(file);
+    }
+
+    // 4. Simpan ke Dokumen Koleksi `leaveRequests` di Firestore
+    const leaveDocData = {
+      uid: state.currentUser.uid,
+      nim: state.studentProfile?.nim || state.currentUser.email.split('@')[0] || '-',
+      nama: state.studentProfile?.nama || state.currentUser.displayName || 'Mahasiswa UPNVJ',
+      fakultas: state.studentProfile?.fakultas || state.selectedFaculty || 'UPNVJ',
+      prodi: state.studentProfile?.prodi || state.selectedProdi || 'Program Studi',
+      jenis: validation.normalizedJenis,
+      mataKuliah: mataKuliah,
+      dosen: dosen || '',
+      tanggalMulai: tanggalMulai,
+      tanggalSelesai: tanggalSelesai || tanggalMulai,
+      alasan: alasan,
+      lampiran: finalLampiranURL,
+      lampiranNama: file.name,
+      lampiranTipe: file.type || 'application/octet-stream',
+      lampiranUkuran: file.size,
+      lampiranKategori: validation.fileCategory,
+      status: 'Menunggu',
+      catatanAdmin: '',
+      diprosesOleh: '',
+      createdAt: new Date().toISOString()
+    };
+
+    await addDoc(collection(db, 'leaveRequests'), leaveDocData);
+
+    showToast(
+      'success',
+      'Pengajuan Surat Berhasil!',
+      `Permohonan Surat ${validation.normalizedJenis} Anda berhasil diajukan dan sedang menunggu verifikasi.`
+    );
+
+    resetLeaveForm();
+
+    // Otomatis beralih ke Tab Riwayat agar mahasiswa dapat langsung memantau
+    const tabBtnHistory = document.getElementById('tab-btn-leave-history');
+    if (tabBtnHistory) {
+      tabBtnHistory.click();
+    }
+  } catch (err) {
+    console.error('Gagal mengirim pengajuan surat:', err);
+    showToast('error', 'Gagal Mengirim Pengajuan', err.message || 'Terjadi kesalahan sistem saat menyimpan ke server.');
+  } finally {
+    setButtonLoading(btnSubmit, false);
+  }
+}
+
+/**
+ * Realtime Listener Pengajuan Surat Milik Mahasiswa yang Sedang Login
+ */
+function listenStudentLeaveRequests() {
+  if (!state.currentUser) return;
+  if (state.unsubscribeLeave) return; // Sudah mendengarkan
+
+  try {
+    const q = query(
+      collection(db, 'leaveRequests'),
+      where('uid', '==', state.currentUser.uid)
+    );
+
+    state.unsubscribeLeave = onSnapshot(q, (snapshot) => {
+      const items = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() });
+      });
+
+      // Urutkan berdasarkan waktu pengajuan terbaru
+      items.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      state.leaveRequests = items;
+
+      // Update badge jumlah di tab
+      const badgeCount = document.getElementById('badge-leave-history-count');
+      const totalCountEl = document.getElementById('history-total-count');
+      if (badgeCount) {
+        badgeCount.textContent = items.length;
+        badgeCount.style.display = items.length > 0 ? 'inline-block' : 'none';
+      }
+      if (totalCountEl) {
+        totalCountEl.textContent = items.length;
+      }
+
+      renderLeaveHistoryList();
+    }, (error) => {
+      console.warn('Gagal memantau pengajuan surat realtime:', error);
+    });
+  } catch (err) {
+    console.warn('Inisialisasi listener surat izin:', err);
+  }
+}
+
+/**
+ * Render Kartu Riwayat Pengajuan Surat Mahasiswa
+ */
+function renderLeaveHistoryList() {
+  const container = document.getElementById('leave-history-list');
+  if (!container) return;
+
+  const filter = state.leaveHistoryFilter || 'all';
+  const list = state.leaveRequests.filter(item => {
+    if (filter === 'all') return true;
+    return (item.status || 'Menunggu').toLowerCase() === filter.toLowerCase();
+  });
+
+  if (list.length === 0) {
+    container.innerHTML = `
+      <div class="card-portal" style="padding: 48px 24px; text-align: center; background: #ffffff; box-shadow: var(--shadow-sm);">
+        <div style="width: 56px; height: 56px; border-radius: 9999px; background: #f1f5f9; color: #94a3b8; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+          <i data-lucide="inbox" style="width: 28px; height: 28px;"></i>
+        </div>
+        <h3 style="font-size: 16px; font-weight: 800; color: #0b2341; margin: 0 0 6px 0;">Belum Ada Pengajuan Surat</h3>
+        <p style="font-size: 13px; color: #64748b; max-width: 420px; margin: 0 auto 20px;">
+          ${filter === 'all' 
+            ? 'Anda belum pernah mengirim pengajuan surat sakit, izin, atau dispensasi perkuliahan.' 
+            : `Tidak ada permohonan dengan status "${filter}".`}
+        </p>
+        <button type="button" id="btn-goto-create-leave" class="btn-primary-block" style="width: auto; padding: 10px 22px; margin: 0 auto; display: inline-flex;">
+          <i data-lucide="plus-circle" style="width: 15px; height: 15px;"></i>
+          <span>Buat Pengajuan Baru</span>
+        </button>
+      </div>
+    `;
+
+    const gotoBtn = document.getElementById('btn-goto-create-leave');
+    if (gotoBtn) {
+      gotoBtn.addEventListener('click', () => {
+        const tabBtnForm = document.getElementById('tab-btn-leave-form');
+        if (tabBtnForm) tabBtnForm.click();
+      });
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = list.map(item => {
+    const badge = formatLeaveStatusBadge(item.status);
+    const dateFormatted = formatWibTime(item.createdAt);
+    const dateRange = item.tanggalMulai === item.tanggalSelesai 
+      ? item.tanggalMulai 
+      : `${item.tanggalMulai} s/d ${item.tanggalSelesai}`;
+
+    const jenisClass = item.jenis === 'Sakit' 
+      ? 'badge-leave-sakit' 
+      : (item.jenis === 'Dispensasi' ? 'badge-leave-dispensasi' : 'badge-leave-izin');
+
+    const ext = (item.lampiranNama?.split('.').pop() || '').toUpperCase();
+
+    return `
+      <div class="leave-history-card">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="file-chip ${jenisClass}">
+              ${escapeHtml(item.jenis)}
+            </span>
+            <span style="font-size: 11.5px; font-weight: 700; color: ${badge.color}; background: ${badge.bg}; border: 1px solid ${badge.borderColor}; padding: 3px 10px; border-radius: 9999px;">
+              <i data-lucide="${badge.icon}" style="width: 11px; height: 11px; vertical-align: middle;"></i> ${badge.text}
+            </span>
+          </div>
+
+          <div style="font-size: 12px; color: #64748b; font-weight: 500;">
+            ${dateFormatted}
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 15.5px; font-weight: 800; color: #0b2341;">
+            ${escapeHtml(item.mataKuliah || 'Semua Mata Kuliah')}
+          </div>
+          <div style="font-size: 12.5px; color: #475569; margin-top: 3px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="calendar" style="width: 13px; height: 13px; color: #0284c7;"></i>
+            <span>Jadwal Izin: <strong>${escapeHtml(dateRange)}</strong></span>
+          </div>
+        </div>
+
+        <div style="padding: 10px 14px; background: #f8fafc; border-radius: 10px; font-size: 13px; color: #334155; margin-bottom: 14px; line-height: 1.5; border-left: 3px solid #cbd5e1;">
+          ${escapeHtml(item.alasan)}
+        </div>
+
+        ${item.catatanAdmin ? `
+          <div style="margin-bottom: 14px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; font-size: 12px; color: #166534;">
+            <strong>Catatan Petugas:</strong> ${escapeHtml(item.catatanAdmin)} ${item.diprosesOleh ? `(${escapeHtml(item.diprosesOleh)})` : ''}
+          </div>
+        ` : ''}
+
+        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 14px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b;">
+            <i data-lucide="paperclip" style="width: 14px; height: 14px; color: #0b2341;"></i>
+            <span style="font-weight: 600; color: #0b2341; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(item.lampiranNama || 'Bukti Dokumen')}
+            </span>
+            <span style="font-size: 10.5px; font-weight: 800; background: #e2e8f0; color: #334155; padding: 1px 6px; border-radius: 4px;">
+              ${escapeHtml(ext || 'FILE')}
+            </span>
+          </div>
+
+          <button type="button" class="btn-view-leave-detail" data-id="${item.id}" style="padding: 8px 16px; border-radius: 10px; font-size: 12.5px; font-weight: 700; color: #0b2341; background: #f1f5f9; border: 1px solid #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+            <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+            <span>Lihat Bukti & Detail</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.btn-view-leave-detail').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openStudentLeaveModal(btn.dataset.id);
+    });
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * Buka Modal Pratinjau Bukti Dokumen & Detail Pengajuan Mahasiswa
+ */
+function openStudentLeaveModal(leaveId) {
+  const item = state.leaveRequests.find(l => l.id === leaveId);
+  if (!item) return;
+
+  const modal = document.getElementById('student-leave-modal');
+  const modalTypeBadge = document.getElementById('modal-leave-type-badge');
+  const modalCreated = document.getElementById('modal-leave-created');
+  const modalBody = document.getElementById('student-leave-modal-body');
+
+  if (!modal || !modalBody) return;
+
+  const badge = formatLeaveStatusBadge(item.status);
+
+  if (modalTypeBadge) {
+    modalTypeBadge.textContent = `Surat ${item.jenis}`;
+    if (item.jenis === 'Sakit') {
+      modalTypeBadge.style.background = '#fee2e2';
+      modalTypeBadge.style.color = '#dc2626';
+    } else if (item.jenis === 'Dispensasi') {
+      modalTypeBadge.style.background = '#f3e8ff';
+      modalTypeBadge.style.color = '#7c3aed';
+    } else {
+      modalTypeBadge.style.background = '#e0f2fe';
+      modalTypeBadge.style.color = '#0284c7';
+    }
+  }
+
+  if (modalCreated) {
+    modalCreated.textContent = `Diajukan pada: ${formatWibTime(item.createdAt)}`;
+  }
+
+  const dateRange = item.tanggalMulai === item.tanggalSelesai 
+    ? item.tanggalMulai 
+    : `${item.tanggalMulai} s/d ${item.tanggalSelesai}`;
+
+  // Render attachment viewer according to file type
+  let attachmentHtml = '';
+  const fileName = item.lampiranNama || 'Dokumen_Bukti';
+  const mime = (item.lampiranTipe || '').toLowerCase();
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const isPdf = ext === 'pdf' || mime === 'application/pdf' || (item.lampiran && item.lampiran.startsWith('data:application/pdf'));
+  const isWord = ['doc', 'docx'].includes(ext) || mime.includes('word') || mime.includes('officedocument');
+  const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) || mime.startsWith('image/') || (item.lampiran && item.lampiran.startsWith('data:image/'));
+
+  if (isImage) {
+    attachmentHtml = `
+      <div style="border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; background: #0b1523; text-align: center; margin-top: 10px;">
+        <img src="${item.lampiran}" alt="Bukti Surat ${escapeHtml(item.jenis)}" style="max-width: 100%; max-height: 360px; object-fit: contain; margin: 0 auto; display: block;" />
+      </div>
+      <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #64748b;">
+          <i data-lucide="image" style="width: 13px; height: 13px; vertical-align: middle;"></i> ${escapeHtml(fileName)}
+        </span>
+        <a href="${item.lampiran}" target="_blank" download="${escapeHtml(fileName)}" class="text-link-btn" style="font-size: 12.5px;">
+          Buka Ukuran Penuh ↗
+        </a>
+      </div>
+    `;
+  } else if (isPdf) {
+    attachmentHtml = `
+      <div style="padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; margin-top: 10px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 12px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i data-lucide="file-text" style="width: 26px; height: 26px;"></i>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-weight: 700; color: #0b2341; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(fileName)}
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+              Dokumen Resmi Format PDF
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <a href="${item.lampiran}" target="_blank" class="btn-primary-block" style="flex: 1; padding: 10px; text-decoration: none; font-size: 13px;">
+            <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+            <span>Buka / Pratinjau PDF</span>
+          </a>
+          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" style="padding: 10px 18px; border-radius: 12px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Unduh</span>
+          </a>
+        </div>
+      </div>
+    `;
+  } else if (isWord) {
+    attachmentHtml = `
+      <div style="padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; margin-top: 10px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 12px; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i data-lucide="file-check" style="width: 26px; height: 26px;"></i>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-weight: 700; color: #0b2341; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(fileName)}
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+              Dokumen Microsoft Word (.${ext})
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" class="btn-primary-block" style="padding: 10px; text-decoration: none; font-size: 13px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Unduh Dokumen Word</span>
+          </a>
+        </div>
+      </div>
+    `;
+  } else {
+    attachmentHtml = `
+      <div style="padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; margin-top: 10px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 12px; background: #f1f5f9; color: #475569; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i data-lucide="file" style="width: 26px; height: 26px;"></i>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-weight: 700; color: #0b2341; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(fileName)}
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+              Berkas Lampiran (${escapeHtml(ext.toUpperCase())})
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" class="btn-primary-block" style="padding: 10px; text-decoration: none; font-size: 13px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Unduh Berkas Lampiran</span>
+          </a>
+        </div>
+      </div>
+    `;
+  }
+
+  modalBody.innerHTML = `
+    <!-- Status Banner -->
+    <div style="padding: 12px 16px; border-radius: 12px; background: ${badge.bg}; border: 1px solid ${badge.borderColor}; color: ${badge.color}; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13.5px;">
+        <i data-lucide="${badge.icon}" style="width: 16px; height: 16px;"></i>
+        <span>Status: ${badge.text}</span>
+      </div>
+      <span style="font-size: 11.5px; opacity: 0.9;">Sistem Presensi SIAKAD</span>
+    </div>
+
+    <!-- Metadata Grid -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; font-size: 13px;">
+      <div style="background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+        <span style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Mata Kuliah:</span>
+        <strong style="color: #0b2341;">${escapeHtml(item.mataKuliah || '-')}</strong>
+      </div>
+      <div style="background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+        <span style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Rentang Tanggal:</span>
+        <strong style="color: #0b2341;">${escapeHtml(dateRange)}</strong>
+      </div>
+      <div style="background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+        <span style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">NIM Mahasiswa:</span>
+        <strong style="color: #0b2341;">${escapeHtml(item.nim || '-')}</strong>
+      </div>
+      <div style="background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+        <span style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Program Studi:</span>
+        <strong style="color: #0b2341;">${escapeHtml(item.prodi || '-')}</strong>
+      </div>
+    </div>
+
+    <!-- Alasan Pengajuan -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px;">
+        Alasan / Keterangan Ketidakhadiran:
+      </label>
+      <div style="padding: 14px; background: #f8fafc; border-radius: 12px; font-size: 13.5px; color: #334155; line-height: 1.55; white-space: pre-wrap; border: 1px solid #e2e8f0;">
+        ${escapeHtml(item.alasan)}
+      </div>
+    </div>
+
+    ${item.catatanAdmin ? `
+      <!-- Catatan Admin -->
+      <div style="margin-bottom: 20px; padding: 14px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; font-size: 13px; color: #78350f;">
+        <strong style="display: block; margin-bottom: 4px;">Catatan Dosen / Verifikator:</strong>
+        <p style="margin: 0; line-height: 1.45;">${escapeHtml(item.catatanAdmin)}</p>
+        ${item.diprosesOleh ? `<div style="font-size: 11px; margin-top: 6px; opacity: 0.8;">Diverifikasi oleh: ${escapeHtml(item.diprosesOleh)}</div>` : ''}
+      </div>
+    ` : ''}
+
+    <!-- Dokumen Lampiran -->
+    <div>
+      <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px;">
+        Dokumen Bukti yang Dilampirkan:
+      </label>
+      ${attachmentHtml}
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closeStudentLeaveModal() {
+  const modal = document.getElementById('student-leave-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+}
+
+/**
+ * Format bytes menjadi teks ramah (KB, MB)
+ */
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 KB';
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+/**
+ * Konversi berkas menjadi Data URL string (Base64)
+ */
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Format Timestamp menjadi Waktu Indonesia Barat
+ */
+function formatWibTime(isoString) {
+  if (!isoString) return '-';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) + ' WIB';
+  } catch (e) {
+    return isoString;
+  }
+}
+
