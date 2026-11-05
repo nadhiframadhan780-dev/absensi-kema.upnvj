@@ -16,6 +16,7 @@ import {
   onSnapshot,
   writeBatch 
 } from '../firebase.js';
+import { generateOfficialLeavePdf } from '../officialLetterPdf.js';
 
 export function listenPendingLeaveRequestsCount(onCountUpdate) {
   const q = query(
@@ -54,7 +55,9 @@ export async function fetchLeaveRequests({ status = 'all', fakultas = 'all', pro
 
 /**
  * Setujui Pengajuan Izin/Sakit:
- * Otomatis Membuat / Memperbarui Data Presensi Mahasiswa Menjadi "Izin" atau "Sakit"
+ * 1. Otomatis Menghasilkan Surat Keputusan Resmi Dekan (A4 PDF) Ber-Cap Stempel Hijau
+ * 2. Menyimpan Surat ke Firestore leaveRequests/{requestId} sehingga otomatis diterima mahasiswa
+ * 3. Otomatis Mencatat Presensi Mahasiswa Menjadi "Izin" atau "Sakit"
  */
 export async function approveLeaveRequest(requestId, adminNote, adminUser) {
   const reqRef = doc(db, 'leaveRequests', requestId);
@@ -67,15 +70,40 @@ export async function approveLeaveRequest(requestId, adminNote, adminUser) {
   else if (reqData.jenis === 'Dispensasi') statusBaru = 'Dispensasi';
   else statusBaru = 'Izin';
 
+  // Buat Surat Keputusan Resmi Format PDF Ber-Cap Hijau UPNVJ
+  let officialPdf = null;
+  try {
+    officialPdf = await generateOfficialLeavePdf({
+      leaveData: { id: requestId, ...reqData },
+      decision: 'Disetujui',
+      adminUser
+    });
+  } catch (pdfErr) {
+    console.error('Peringatan: Gagal generate PDF surat izin:', pdfErr);
+  }
+
   const batch = writeBatch(db);
 
-  // 1. Update status pengajuan
-  batch.update(reqRef, {
+  // 1. Update status pengajuan beserta Surat Keputusan Resmi
+  const updatePayload = {
     status: 'Disetujui',
     catatanAdmin: adminNote || 'Disetujui oleh pengelola akademik',
     diprosesOleh: `${adminUser.nama} (${adminUser.role})`,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  if (officialPdf) {
+    updatePayload.suratKeputusanPdf = officialPdf.pdfDataUrl;
+    updatePayload.suratNomor = officialPdf.nomorSurat;
+    updatePayload.dekanNama = officialPdf.dekanInfo.nama;
+    updatePayload.dekanNip = officialPdf.dekanInfo.nip;
+    updatePayload.dekanFakultas = officialPdf.dekanInfo.fakultasName;
+    updatePayload.capWarna = 'HIJAU';
+    updatePayload.capStatus = 'Disetujui';
+    updatePayload.tanggalKeputusan = officialPdf.tanggalKeputusan;
+  }
+
+  batch.update(reqRef, updatePayload);
 
   // 2. Buat atau perbarui catatan absensi
   const newAttRef = doc(collection(db, 'attendance'));
@@ -96,18 +124,55 @@ export async function approveLeaveRequest(requestId, adminNote, adminUser) {
   });
 
   await batch.commit();
+
+  return officialPdf;
 }
 
+/**
+ * Tolak Pengajuan:
+ * Otomatis Menghasilkan Surat Keputusan Penolakan Ber-Cap Stempel Merah
+ */
 export async function rejectLeaveRequest(requestId, rejectReason, adminUser) {
   if (!rejectReason || rejectReason.trim().length < 3) {
     throw new Error('Alasan penolakan izin wajib diisi.');
   }
 
   const reqRef = doc(db, 'leaveRequests', requestId);
-  await updateDoc(reqRef, {
+  const snap = await getDoc(reqRef);
+  if (!snap.exists()) throw new Error('Pengajuan tidak ditemukan.');
+  const reqData = snap.data();
+
+  // Buat Surat Keputusan Penolakan Resmi Format PDF Ber-Cap Merah UPNVJ
+  let officialPdf = null;
+  try {
+    officialPdf = await generateOfficialLeavePdf({
+      leaveData: { id: requestId, ...reqData, catatanAdmin: rejectReason.trim() },
+      decision: 'Ditolak',
+      adminUser
+    });
+  } catch (pdfErr) {
+    console.error('Peringatan: Gagal generate PDF penolakan:', pdfErr);
+  }
+
+  const updatePayload = {
     status: 'Ditolak',
     catatanAdmin: rejectReason.trim(),
     diprosesOleh: `${adminUser.nama} (${adminUser.role})`,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  if (officialPdf) {
+    updatePayload.suratKeputusanPdf = officialPdf.pdfDataUrl;
+    updatePayload.suratNomor = officialPdf.nomorSurat;
+    updatePayload.dekanNama = officialPdf.dekanInfo.nama;
+    updatePayload.dekanNip = officialPdf.dekanInfo.nip;
+    updatePayload.dekanFakultas = officialPdf.dekanInfo.fakultasName;
+    updatePayload.capWarna = 'MERAH';
+    updatePayload.capStatus = 'Ditolak';
+    updatePayload.tanggalKeputusan = officialPdf.tanggalKeputusan;
+  }
+
+  await updateDoc(reqRef, updatePayload);
+
+  return officialPdf;
 }

@@ -10,6 +10,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Ekonomi dan Bisnis",
     ikon: "briefcase",
     warna: "#2563eb",
+    dekan: {
+      nama: "Dr. Jubaedah, S.E., M.M.",
+      nip: "196803201994032001"
+    },
     prodi: [
       { id: "d3-perbankan", nama: "D3 Perbankan dan Keuangan", jenjang: "D3" },
       { id: "d3-akuntansi", nama: "D3 Akuntansi", jenjang: "D3" },
@@ -28,6 +32,10 @@ export const FAKULTAS_DATA = {
     ikon: "stethoscope",
     warna: "#0284c7",
     catatanKhusus: 'Perlu diperhatikan bahwa "Profesi Dokter" dan "Profesi Apoteker" merupakan program profesi yang harus ditempuh setelah menyelesaikan gelar sarjana terkait, bukan program gelar sarjana mandiri. Selain itu, fakultas kedokteran di universitas ini juga memiliki program studi lain di bidang kesehatan seperti Keperawatan dan Gizi, tetapi program-program tersebut tidak tercantum dalam daftar 7 program studi yang diperkenalkan secara resmi oleh Fakultas Kedokteran.',
+    dekan: {
+      nama: "Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.",
+      nip: "196802281997021001"
+    },
     prodi: [
       { id: "s1-kedokteran", nama: "S1 Kedokteran", jenjang: "S1" },
       { id: "profesi-dokter", nama: "Profesi Dokter", jenjang: "Profesi" },
@@ -44,6 +52,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Ilmu Sosial dan Politik",
     ikon: "landmark",
     warna: "#7c3aed",
+    dekan: {
+      nama: "Dr. S. Bekti Istiyanto, M.Si.",
+      nip: "197206121999031001"
+    },
     prodi: [
       { id: "s1-ilmu-komunikasi", nama: "S1 Ilmu Komunikasi", jenjang: "S1" },
       { id: "s2-ilmu-komunikasi", nama: "S2 Ilmu Komunikasi", jenjang: "S2" },
@@ -61,6 +73,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Ilmu Komputer",
     ikon: "cpu",
     warna: "#059669",
+    dekan: {
+      nama: "Dr. Supriyanto, S.T., M.T.",
+      nip: "197105151998031002"
+    },
     prodi: [
       { id: "s1-sistem-informasi", nama: "S1 Sistem Informasi", jenjang: "S1" },
       { id: "d3-sistem-informasi", nama: "D3 Sistem Informasi", jenjang: "D3" },
@@ -74,6 +90,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Teknik",
     ikon: "wrench",
     warna: "#d97706",
+    dekan: {
+      nama: "Dr. Ir. Reda Rizal, M.Si.",
+      nip: "196210051992031001"
+    },
     prodi: [
       { id: "s1-teknik-mesin", nama: "S1 Teknik Mesin", jenjang: "S1" },
       { id: "s1-teknik-industri", nama: "S1 Teknik Industri", jenjang: "S1" },
@@ -88,6 +108,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Hukum",
     ikon: "scale",
     warna: "#dc2626",
+    dekan: {
+      nama: "Dr. Suherman, S.H., LL.M.",
+      nip: "197409212000121001"
+    },
     prodi: [
       { id: "s1-hukum", nama: "S1 Hukum", jenjang: "S1" },
       { id: "s1-hukum-bisnis", nama: "S1 Hukum Bisnis", jenjang: "S1" },
@@ -101,6 +125,10 @@ export const FAKULTAS_DATA = {
     nama: "Fakultas Ilmu Kesehatan",
     ikon: "activity",
     warna: "#0891b2",
+    dekan: {
+      nama: "Desak Nyoman Sithi, S.Kp., MARS.",
+      nip: "196708221990032001"
+    },
     prodi: [
       { id: "d3-keperawatan", nama: "D3 Keperawatan", jenjang: "D3" },
       { id: "d3-fisioterapi", nama: "D3 Fisioterapi", jenjang: "D3" },
@@ -197,4 +225,21 @@ export function getAllProdiList() {
     });
   });
   return result;
+}
+
+export function getDekanByFaculty(facultyIdOrName) {
+  const fac = getFacultyById(facultyIdOrName);
+  if (fac && fac.dekan) {
+    return {
+      ...fac.dekan,
+      fakultasCode: fac.kode,
+      fakultasName: fac.nama
+    };
+  }
+  return {
+    nama: "Dr. Supriyanto, S.T., M.T.",
+    nip: "197105151998031002",
+    fakultasCode: "FIK",
+    fakultasName: "Fakultas Ilmu Komputer"
+  };
 }

@@ -14,6 +14,10 @@ export const FACULTIES = [
     icon: "briefcase",
     color: "#1e3a8a",
     accent: "#3b82f6",
+    dekan: {
+      nama: "Dr. Jubaedah, S.E., M.M.",
+      nip: "196803201994032001"
+    },
     prodi: [
       "D3 Perbankan dan Keuangan",
       "D3 Akuntansi",
@@ -33,6 +37,10 @@ export const FACULTIES = [
     color: "#065f46",
     accent: "#10b981",
     specialNote: FK_SPECIAL_NOTE,
+    dekan: {
+      nama: "Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.",
+      nip: "196802281997021001"
+    },
     prodi: [
       "S1 Kedokteran",
       "Profesi Dokter",
@@ -50,6 +58,10 @@ export const FACULTIES = [
     icon: "landmark",
     color: "#7c2d12",
     accent: "#f97316",
+    dekan: {
+      nama: "Dr. S. Bekti Istiyanto, M.Si.",
+      nip: "197206121999031001"
+    },
     prodi: [
       "S1 Ilmu Komunikasi",
       "S2 Ilmu Komunikasi",
@@ -68,6 +80,10 @@ export const FACULTIES = [
     icon: "laptop",
     color: "#1e1b4b",
     accent: "#6366f1",
+    dekan: {
+      nama: "Dr. Supriyanto, S.T., M.T.",
+      nip: "197105151998031002"
+    },
     prodi: [
       "S1 Sistem Informasi",
       "D3 Sistem Informasi",
@@ -82,6 +98,10 @@ export const FACULTIES = [
     icon: "cog",
     color: "#78350f",
     accent: "#d97706",
+    dekan: {
+      nama: "Dr. Ir. Reda Rizal, M.Si.",
+      nip: "196210051992031001"
+    },
     prodi: [
       "S1 Teknik Mesin",
       "S1 Teknik Industri",
@@ -97,6 +117,10 @@ export const FACULTIES = [
     icon: "scale",
     color: "#4c1d95",
     accent: "#8b5cf6",
+    dekan: {
+      nama: "Dr. Suherman, S.H., LL.M.",
+      nip: "197409212000121001"
+    },
     prodi: [
       "S1 Hukum",
       "S1 Hukum Bisnis",
@@ -111,6 +135,10 @@ export const FACULTIES = [
     icon: "heart-pulse",
     color: "#134e4a",
     accent: "#14b8a6",
+    dekan: {
+      nama: "Desak Nyoman Sithi, S.Kp., MARS.",
+      nip: "196708221990032001"
+    },
     prodi: [
       "D3 Keperawatan",
       "D3 Fisioterapi",
@@ -131,10 +159,32 @@ export function getFaculties() {
 
 export function getFacultyById(id) {
   if (!id) return null;
-  return FACULTIES.find(f => f.id.toLowerCase() === id.toLowerCase() || f.code.toLowerCase() === id.toLowerCase()) || null;
+  const clean = String(id).toLowerCase().trim();
+  return FACULTIES.find(f => 
+    f.id.toLowerCase() === clean || 
+    f.code.toLowerCase() === clean || 
+    f.name.toLowerCase().includes(clean)
+  ) || null;
 }
 
 export function getProdiList(facultyId) {
   const fac = getFacultyById(facultyId);
   return fac ? fac.prodi : [];
+}
+
+export function getDekanByFaculty(facultyIdOrName) {
+  const fac = getFacultyById(facultyIdOrName);
+  if (fac && fac.dekan) {
+    return {
+      ...fac.dekan,
+      fakultasCode: fac.code,
+      fakultasName: fac.name
+    };
+  }
+  return {
+    nama: "Dr. Supriyanto, S.T., M.T.",
+    nip: "197105151998031002",
+    fakultasCode: "FIK",
+    fakultasName: "Fakultas Ilmu Komputer"
+  };
 }

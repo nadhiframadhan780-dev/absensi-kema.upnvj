@@ -378,5 +378,52 @@ test('Strategi Unggah & Anti-Hang Firestore: Kompresi gambar dan proteksi berkas
   assert.equal(docLarge.strategy, 'storage-required');
 });
 
+test('Surat Keputusan Resmi: Format Nomor Naskah Dinas, Dekan Fakultas, dan Cap Stempel', async () => {
+  const { generateOfficialLetterNumber, formatIndonesianDateLong } = await import('../js/officialLetterPdf.js');
+  const { getDekanByFaculty } = await import('../js/data.js');
+
+  // 1. Nomor naskah dinas resmi institusi UPNVJ
+  const noSuratFIK = generateOfficialLetterNumber('req12345678', 'FIK', 2026);
+  assert.match(noSuratFIK, /^B\/\d{3}\/UN61\.0\/FIK\.KM\.01\/2026$/);
+
+  const noSuratFK = generateOfficialLetterNumber('req87654321', 'FK', 2026);
+  assert.match(noSuratFK, /^B\/\d{3}\/UN61\.0\/FK\.KM\.01\/2026$/);
+
+  // 2. Format tanggal Indonesia lengkap
+  const tanggal = formatIndonesianDateLong('2026-05-24');
+  assert.equal(tanggal, '24 Mei 2026');
+
+  // 3. Pengesahan Dekan sesuai Fakultas & NIP Resmi
+  const dekanFIK = getDekanByFaculty('fik');
+  assert.equal(dekanFIK.nama, 'Dr. Supriyanto, S.T., M.T.');
+  assert.equal(dekanFIK.nip, '197105151998031002');
+  assert.equal(dekanFIK.fakultasCode, 'FIK');
+
+  const dekanFEB = getDekanByFaculty('feb');
+  assert.equal(dekanFEB.nama, 'Dr. Jubaedah, S.E., M.M.');
+  assert.equal(dekanFEB.nip, '196803201994032001');
+
+  const dekanFK = getDekanByFaculty('fk');
+  assert.equal(dekanFK.nama, 'Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.');
+  assert.equal(dekanFK.nip, '196802281997021001');
+
+  const dekanFISIP = getDekanByFaculty('fisip');
+  assert.equal(dekanFISIP.nama, 'Dr. S. Bekti Istiyanto, M.Si.');
+  assert.equal(dekanFISIP.nip, '197206121999031001');
+
+  const dekanFT = getDekanByFaculty('ft');
+  assert.equal(dekanFT.nama, 'Dr. Ir. Reda Rizal, M.Si.');
+  assert.equal(dekanFT.nip, '196210051992031001');
+
+  const dekanFH = getDekanByFaculty('fh');
+  assert.equal(dekanFH.nama, 'Dr. Suherman, S.H., LL.M.');
+  assert.equal(dekanFH.nip, '197409212000121001');
+
+  const dekanFIKES = getDekanByFaculty('fikes');
+  assert.equal(dekanFIKES.nama, 'Desak Nyoman Sithi, S.Kp., MARS.');
+  assert.equal(dekanFIKES.nip, '196708221990032001');
+});
+
+
 
 

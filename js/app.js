@@ -67,6 +67,13 @@ import {
   escapeHtml
 } from './ui.js';
 
+import {
+  openDocumentPreviewSafely,
+  downloadPdfFromDataUrl,
+  printPdfDataUrl,
+  generateOfficialLeavePdf
+} from './officialLetterPdf.js';
+
 // Global Application State
 const state = {
   currentRoute: '',
@@ -2690,6 +2697,18 @@ function renderLeaveHistoryList() {
           </div>
         ` : ''}
 
+        ${item.suratKeputusanPdf ? `
+          <div style="margin-bottom: 14px; padding: 8px 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #065f46;">
+              <i data-lucide="file-check-2" style="width: 14px; height: 14px; color: #059669;"></i>
+              <span>Surat Keputusan Resmi Dekan (A4 PDF) Siap Dicetak</span>
+            </div>
+            <span style="font-size: 10.5px; font-weight: 800; color: #059669; background: #d1fae5; padding: 2px 8px; border-radius: 4px;">
+              Wajib Serahkan ke Dosen
+            </span>
+          </div>
+        ` : ''}
+
         <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 14px; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b;">
             <i data-lucide="paperclip" style="width: 14px; height: 14px; color: #0b2341;"></i>
@@ -2757,7 +2776,7 @@ function openStudentLeaveModal(leaveId) {
     ? item.tanggalMulai 
     : `${item.tanggalMulai} s/d ${item.tanggalSelesai}`;
 
-  // Render attachment viewer according to file type
+  // Render attachment viewer according to file type with safe blob viewer
   let attachmentHtml = '';
   const fileName = item.lampiranNama || 'Dokumen_Bukti';
   const mime = (item.lampiranTipe || '').toLowerCase();
@@ -2771,13 +2790,14 @@ function openStudentLeaveModal(leaveId) {
       <div style="border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; background: #0b1523; text-align: center; margin-top: 10px;">
         <img src="${item.lampiran}" alt="Bukti Surat ${escapeHtml(item.jenis)}" style="max-width: 100%; max-height: 360px; object-fit: contain; margin: 0 auto; display: block;" />
       </div>
-      <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <span style="font-size: 12px; color: #64748b;">
           <i data-lucide="image" style="width: 13px; height: 13px; vertical-align: middle;"></i> ${escapeHtml(fileName)}
         </span>
-        <a href="${item.lampiran}" target="_blank" download="${escapeHtml(fileName)}" class="text-link-btn" style="font-size: 12.5px;">
-          Buka Ukuran Penuh ↗
-        </a>
+        <button type="button" id="btn-student-view-attachment" style="background: none; border: none; font-size: 12.5px; font-weight: 700; color: #0284c7; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+          <i data-lucide="external-link" style="width: 13px; height: 13px;"></i>
+          <span>Buka Ukuran Penuh</span>
+        </button>
       </div>
     `;
   } else if (isPdf) {
@@ -2797,14 +2817,14 @@ function openStudentLeaveModal(leaveId) {
           </div>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 14px;">
-          <a href="${item.lampiran}" target="_blank" class="btn-primary-block" style="flex: 1; padding: 10px; text-decoration: none; font-size: 13px;">
+          <button type="button" id="btn-student-view-pdf-attach" class="btn-primary-block" style="flex: 1; padding: 10px; font-size: 13px;">
             <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
             <span>Buka / Pratinjau PDF</span>
-          </a>
-          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" style="padding: 10px 18px; border-radius: 12px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          </button>
+          <button type="button" id="btn-student-down-pdf-attach" style="padding: 10px 18px; border-radius: 12px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Unduh</span>
-          </a>
+          </button>
         </div>
       </div>
     `;
@@ -2825,10 +2845,10 @@ function openStudentLeaveModal(leaveId) {
           </div>
         </div>
         <div style="margin-top: 14px;">
-          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" class="btn-primary-block" style="padding: 10px; text-decoration: none; font-size: 13px;">
+          <button type="button" id="btn-student-down-doc-attach" class="btn-primary-block" style="padding: 10px; font-size: 13px;">
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Unduh Dokumen Word</span>
-          </a>
+          </button>
         </div>
       </div>
     `;
@@ -2849,11 +2869,77 @@ function openStudentLeaveModal(leaveId) {
           </div>
         </div>
         <div style="margin-top: 14px;">
-          <a href="${item.lampiran}" download="${escapeHtml(fileName)}" class="btn-primary-block" style="padding: 10px; text-decoration: none; font-size: 13px;">
+          <button type="button" id="btn-student-down-misc-attach" class="btn-primary-block" style="padding: 10px; font-size: 13px;">
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Unduh Berkas Lampiran</span>
-          </a>
+          </button>
         </div>
+      </div>
+    `;
+  }
+
+  // Official Letter Box if available or eligible
+  const isApproved = item.status === 'Disetujui';
+  const isRejected = item.status === 'Ditolak';
+  const hasOfficialLetter = Boolean(item.suratKeputusanPdf);
+  const capColor = item.capWarna || (isApproved ? 'HIJAU' : 'MERAH');
+  const capBadgeBg = capColor === 'HIJAU' ? '#dcfce7' : '#fee2e2';
+  const capBadgeText = capColor === 'HIJAU' ? '#15803d' : '#b91c1c';
+
+  let officialLetterBoxHtml = '';
+  if (hasOfficialLetter) {
+    officialLetterBoxHtml = `
+      <!-- SURAT KEPUTUSAN RESMI DEKAN (A4 PDF) -->
+      <div style="margin-top: 20px; padding: 18px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 14px;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: #16a34a; color: #ffffff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <i data-lucide="file-check-2" style="width: 24px; height: 24px;"></i>
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #14532d;">Surat Keputusan Resmi Dekan (A4 PDF)</div>
+              <div style="font-size: 11.5px; color: #166534; font-family: monospace;">Nomor: ${escapeHtml(item.suratNomor || '-')}</div>
+            </div>
+          </div>
+          <span style="font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 9999px; background: ${capBadgeBg}; color: ${capBadgeText}; border: 1px solid currentColor;">
+            ★ CAP STEMPEL ${capColor}
+          </span>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 12.5px; color: #14532d; line-height: 1.5;">
+          <div style="font-weight: 800; color: #166534; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="alert-circle" style="width: 15px; height: 15px; color: #15803d;"></i>
+            <span>PENTING & WAJIB:</span>
+          </div>
+          Surat keputusan resmi ini disahkan oleh Dekan <strong>${escapeHtml(item.dekanNama || 'Fakultas')}</strong>. Mahasiswa bersangkutan <strong>WAJIB MENCETAK (PRINT A4)</strong> surat ini dan menyerahkannya kepada Dosen Pengampu / Penanggung Jawab Mata Kuliah sebagai bukti presensi resmi yang sah.
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn-primary-block" id="btn-student-view-official-pdf" style="flex: 1; min-width: 130px; padding: 10px; font-size: 12.5px;">
+            <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+            <span>Buka / Pratinjau Surat</span>
+          </button>
+          <button type="button" id="btn-student-down-official-pdf" style="padding: 10px 16px; border-radius: 10px; background: #ffffff; border: 1px solid #86efac; color: #166534; font-weight: 700; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Unduh PDF</span>
+          </button>
+          <button type="button" id="btn-student-print-official-pdf" style="padding: 10px 16px; border-radius: 10px; background: #15803d; color: #ffffff; border: none; font-weight: 700; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="printer" style="width: 14px; height: 14px;"></i>
+            <span>Cetak (Print A4)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (isApproved || isRejected) {
+    // Tombol generate on-the-fly jika surat belum tercatat
+    officialLetterBoxHtml = `
+      <div style="margin-top: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; text-align: center;">
+        <div style="font-size: 13px; font-weight: 700; color: #0b2341; margin-bottom: 4px;">Surat Keputusan Resmi Dekan (A4 PDF)</div>
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 12px;">Pengajuan ini telah diproses oleh verifikator akademik. Anda dapat menerbitkan dan mencetak lembar surat keputusan resmi ber-cap stempel sekarang.</div>
+        <button type="button" id="btn-student-generate-official-pdf" class="btn-primary-block" style="padding: 10px 20px; margin: 0 auto; display: inline-flex; width: auto; font-size: 13px;">
+          <i data-lucide="file-check-2" style="width: 15px; height: 15px;"></i>
+          <span>Buat & Unduh Surat Keputusan Resmi (A4 PDF)</span>
+        </button>
       </div>
     `;
   }
@@ -2907,17 +2993,89 @@ function openStudentLeaveModal(leaveId) {
       </div>
     ` : ''}
 
-    <!-- Dokumen Lampiran -->
+    <!-- Dokumen Lampiran Bukti Mahasiswa -->
     <div>
       <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px;">
         Dokumen Bukti yang Dilampirkan:
       </label>
       ${attachmentHtml}
     </div>
+
+    <!-- Surat Keputusan Resmi Dekan -->
+    ${officialLetterBoxHtml}
   `;
 
   modal.classList.remove('hidden');
   modal.style.display = 'flex';
+
+  // Hook up lampiran buttons safely (without blank page)
+  const btnViewImg = document.getElementById('btn-student-view-attachment');
+  if (btnViewImg && item.lampiran) {
+    btnViewImg.onclick = () => openDocumentPreviewSafely(item.lampiran, fileName);
+  }
+
+  const btnViewPdfAttach = document.getElementById('btn-student-view-pdf-attach');
+  if (btnViewPdfAttach && item.lampiran) {
+    btnViewPdfAttach.onclick = () => openDocumentPreviewSafely(item.lampiran, fileName);
+  }
+
+  const btnDownPdfAttach = document.getElementById('btn-student-down-pdf-attach');
+  if (btnDownPdfAttach && item.lampiran) {
+    btnDownPdfAttach.onclick = () => downloadPdfFromDataUrl(item.lampiran, fileName);
+  }
+
+  const btnDownDocAttach = document.getElementById('btn-student-down-doc-attach');
+  if (btnDownDocAttach && item.lampiran) {
+    btnDownDocAttach.onclick = () => downloadPdfFromDataUrl(item.lampiran, fileName);
+  }
+
+  const btnDownMiscAttach = document.getElementById('btn-student-down-misc-attach');
+  if (btnDownMiscAttach && item.lampiran) {
+    btnDownMiscAttach.onclick = () => downloadPdfFromDataUrl(item.lampiran, fileName);
+  }
+
+  // Hook up official decision letter buttons
+  if (hasOfficialLetter) {
+    const btnViewOff = document.getElementById('btn-student-view-official-pdf');
+    if (btnViewOff) {
+      btnViewOff.onclick = () => openDocumentPreviewSafely(item.suratKeputusanPdf, `Surat_Keputusan_${item.nim}.pdf`);
+    }
+
+    const btnDownOff = document.getElementById('btn-student-down-official-pdf');
+    if (btnDownOff) {
+      btnDownOff.onclick = () => downloadPdfFromDataUrl(item.suratKeputusanPdf, `Surat_Keputusan_${item.nim}.pdf`);
+    }
+
+    const btnPrintOff = document.getElementById('btn-student-print-official-pdf');
+    if (btnPrintOff) {
+      btnPrintOff.onclick = () => printPdfDataUrl(item.suratKeputusanPdf);
+    }
+  } else if (isApproved || isRejected) {
+    const btnGenOff = document.getElementById('btn-student-generate-official-pdf');
+    if (btnGenOff) {
+      btnGenOff.onclick = async () => {
+        try {
+          btnGenOff.disabled = true;
+          btnGenOff.innerHTML = '<span>Sedang Menerbitkan Surat...</span>';
+          const generated = await generateOfficialLeavePdf({
+            leaveData: item,
+            decision: item.status,
+            adminUser: { nama: item.diprosesOleh || 'Pengelola Akademik', role: 'admin' }
+          });
+          item.suratKeputusanPdf = generated.pdfDataUrl;
+          item.suratNomor = generated.nomorSurat;
+          item.dekanNama = generated.dekanInfo.nama;
+          item.dekanNip = generated.dekanInfo.nip;
+          item.capWarna = generated.capWarna;
+          showToast('success', 'Surat Diterbitkan', 'Surat keputusan resmi A4 berhasil dibuat.');
+          openStudentLeaveModal(leaveId);
+        } catch (genErr) {
+          showToast('error', 'Gagal Membuat Surat', genErr.message);
+          btnGenOff.disabled = false;
+        }
+      };
+    }
+  }
 
   if (window.lucide) window.lucide.createIcons();
 }
