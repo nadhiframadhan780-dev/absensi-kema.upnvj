@@ -16,7 +16,8 @@ import {
   getFileCategory,
   formatLeaveStatusBadge,
   ALLOWED_LEAVE_EXTENSIONS,
-  MAX_LEAVE_FILE_SIZE_BYTES
+  MAX_LEAVE_FILE_SIZE_BYTES,
+  checkAuthRedirect
 } from '../js/logic.js';
 import { FACULTIES, getFacultyById, getProdiList, FK_SPECIAL_NOTE } from '../js/data.js';
 
@@ -256,7 +257,7 @@ test('Pengajuan Surat: Penolakan Validasi Error Kasus Negatif', () => {
     fileSize: 1000
   });
   assert.equal(invalidJenis.valid, false);
-  assert.ok(invalidJenis.error.includes('Jenis pengajuan'));
+  assert.ok(invalidJenis.error?.includes('Jenis pengajuan'));
 
   // Alasan terlalu pendek (<10 karakter)
   const shortReason = validateLeaveSubmission({
@@ -268,7 +269,7 @@ test('Pengajuan Surat: Penolakan Validasi Error Kasus Negatif', () => {
     fileSize: 1000
   });
   assert.equal(shortReason.valid, false);
-  assert.ok(shortReason.error.includes('Alasan pengajuan'));
+  assert.ok(shortReason.error?.includes('Alasan pengajuan'));
 
   // Format berkas ditolak (misal .exe)
   const invalidExt = validateLeaveSubmission({
@@ -280,7 +281,7 @@ test('Pengajuan Surat: Penolakan Validasi Error Kasus Negatif', () => {
     fileSize: 1000
   });
   assert.equal(invalidExt.valid, false);
-  assert.ok(invalidExt.error.includes('tidak didukung'));
+  assert.ok(invalidExt.error?.includes('tidak didukung'));
 
   // Ukuran berkas melebihi 10MB
   const tooLarge = validateLeaveSubmission({
@@ -292,7 +293,7 @@ test('Pengajuan Surat: Penolakan Validasi Error Kasus Negatif', () => {
     fileSize: 15 * 1024 * 1024
   });
   assert.equal(tooLarge.valid, false);
-  assert.ok(tooLarge.error.includes('melebihi batas maksimal'));
+  assert.ok(tooLarge.error?.includes('melebihi batas maksimal'));
 });
 
 test('Pengajuan Surat: Format Badge Status', () => {
@@ -300,4 +301,59 @@ test('Pengajuan Surat: Format Badge Status', () => {
   assert.equal(formatLeaveStatusBadge('Disetujui').text, 'Disetujui');
   assert.equal(formatLeaveStatusBadge('Ditolak').text, 'Ditolak');
 });
+
+test('Pengalihan Dashboard: Profil 100% lengkap langsung diarahkan ke #/beranda', () => {
+  const completeProfile = {
+    nama: 'Budi Santoso',
+    nim: '2110511001',
+    email: '2110511001@mahasiswa.upnvj.ac.id',
+    fakultas: 'FIK',
+    prodi: 'S1 Sistem Informasi',
+    angkatan: '2021',
+    semester: '6',
+    tanggalLahir: '2003-05-14',
+    tempatLahir: 'Jakarta',
+    jenisKelamin: 'Laki-laki',
+    noHp: '081234567890',
+    alamat: 'Jl. RS Fatmawati No. 1 Jakarta Selatan',
+    fotoURL: 'https://example.com/foto.jpg',
+    profileComplete: true
+  };
+
+  // 1. Saat mahasiswa dengan profil 100% membuka landing page ('#/'), langsung ke Dashboard ('#/beranda')
+  const r1 = checkAuthRedirect({ isAuthenticated: true, profile: completeProfile, currentRoute: '#/' });
+  assert.equal(r1.redirect, true);
+  assert.equal(r1.target, '#/beranda');
+
+  // 2. Saat membuka login ('#/login'), langsung ke Dashboard ('#/beranda')
+  const r2 = checkAuthRedirect({ isAuthenticated: true, profile: completeProfile, currentRoute: '#/login' });
+  assert.equal(r2.redirect, true);
+  assert.equal(r2.target, '#/beranda');
+
+  // 3. Saat membuka prodi ('#/prodi'), langsung ke Dashboard ('#/beranda')
+  const r3 = checkAuthRedirect({ isAuthenticated: true, profile: completeProfile, currentRoute: '#/prodi' });
+  assert.equal(r3.redirect, true);
+  assert.equal(r3.target, '#/beranda');
+
+  // 4. Saat membuka halaman absensi ('#/absensi'), tetap di absensi
+  const r4 = checkAuthRedirect({ isAuthenticated: true, profile: completeProfile, currentRoute: '#/absensi' });
+  assert.equal(r4.redirect, false);
+  assert.equal(r4.target, '#/absensi');
+
+  // 5. Jika profil belum lengkap (<100%), harus diarahkan ke '#/profil'
+  const incompleteProfile = {
+    nama: 'Budi Santoso',
+    nim: '2110511001',
+    profileComplete: false
+  };
+  const r5 = checkAuthRedirect({ isAuthenticated: true, profile: incompleteProfile, currentRoute: '#/beranda' });
+  assert.equal(r5.redirect, true);
+  assert.equal(r5.target, '#/profil');
+
+  // 6. Jika belum login dan membuka rute privat, diarahkan ke '#/login'
+  const r6 = checkAuthRedirect({ isAuthenticated: false, profile: null, currentRoute: '#/beranda' });
+  assert.equal(r6.redirect, true);
+  assert.equal(r6.target, '#/login');
+});
+
 

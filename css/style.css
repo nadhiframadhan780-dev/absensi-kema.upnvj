@@ -309,6 +309,36 @@ h1, h2, h3, h4, .font-heading {
   background: var(--rose-100);
 }
 
+.btn-logout-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  flex-shrink: 0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.btn-logout-header:hover {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+.btn-dash-logout:hover {
+  background: rgba(239, 68, 68, 0.3) !important;
+  color: #ffffff !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+}
+
 .btn-login-cta {
   display: inline-flex;
   align-items: center;

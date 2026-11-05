@@ -215,7 +215,20 @@ export function showConfirmDialog({
 
     if (confirmModal) {
       confirmModal.classList.remove('hidden');
-      confirmModal.classList.add('flex');
+      confirmModal.style.display = 'flex';
+
+      // Pastikan backdrop click membatalkan dialog
+      confirmModal.onclick = (e) => {
+        if (e.target === confirmModal) {
+          closeConfirmModal(false);
+        }
+      };
+
+      if (window.lucide) window.lucide.createIcons();
+    } else {
+      // Fallback aman jika elemen DOM modal tidak ditemukan
+      const result = window.confirm(`${title}\n\n${message}`);
+      resolve(result);
     }
   });
 }
@@ -224,7 +237,7 @@ export function closeConfirmModal(result = false) {
   if (!confirmModal) confirmModal = document.getElementById('confirm-modal');
   if (confirmModal) {
     confirmModal.classList.add('hidden');
-    confirmModal.classList.remove('flex');
+    confirmModal.style.display = 'none';
   }
   if (confirmResolver) {
     confirmResolver(result);
@@ -256,7 +269,7 @@ export function showAttendanceProof(data = {}) {
   if (statusEl) statusEl.textContent = data.status || 'Hadir';
 
   proofModal.classList.remove('hidden');
-  proofModal.classList.add('flex');
+  proofModal.style.display = 'flex';
 
   // Bunyikan audio beep dan getar
   playSuccessSound();
@@ -266,7 +279,7 @@ export function closeProofModal() {
   if (!proofModal) proofModal = document.getElementById('proof-modal');
   if (proofModal) {
     proofModal.classList.add('hidden');
-    proofModal.classList.remove('flex');
+    proofModal.style.display = 'none';
   }
 }
 

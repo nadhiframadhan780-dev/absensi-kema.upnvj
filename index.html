@@ -76,8 +76,9 @@
                 <span id="nav-user-nim" class="user-chip-nim">2110511001</span>
               </div>
             </a>
-            <button id="btn-logout" type="button" class="btn-icon-subtle" title="Keluar Akun" aria-label="Keluar Akun">
-              <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
+            <button id="btn-logout" type="button" class="btn-logout-header" title="Keluar Akun (Logout)" aria-label="Keluar Akun">
+              <i data-lucide="log-out" style="width: 17px; height: 17px;"></i>
+              <span class="hidden sm:inline" style="font-size: 12px; font-weight: 700;">Keluar</span>
             </button>
           </div>
 
@@ -315,10 +316,16 @@
                   </span>
                   <span id="dash-date-today" style="font-size: 12px; color: #cbd5e1; font-weight: 500;">Hari ini</span>
                 </div>
-                <a href="#/absensi" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #f59e0b; color: #07172c; border-radius: 12px; font-size: 13px; font-weight: 800; text-decoration: none; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
-                  <i data-lucide="qr-code" style="width: 16px; height: 16px;"></i>
-                  <span>Presensi Kuliah Sekarang</span>
-                </a>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button id="btn-dash-logout" type="button" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                    <i data-lucide="log-out" style="width: 15px; height: 15px;"></i>
+                    <span>Keluar Akun</span>
+                  </button>
+                  <a href="#/absensi" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #f59e0b; color: #07172c; border-radius: 12px; font-size: 13px; font-weight: 800; text-decoration: none; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
+                    <i data-lucide="qr-code" style="width: 16px; height: 16px;"></i>
+                    <span>Presensi Kuliah Sekarang</span>
+                  </a>
+                </div>
               </div>
               <div>
                 <h1 id="dash-greeting" style="font-size: 28px; font-weight: 800; color: #ffffff; line-height: 1.2;">Halo, Mahasiswa</h1>
@@ -851,7 +858,11 @@
                 </div>
               </div>
 
-              <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end;">
+              <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <button id="btn-profile-logout" type="button" class="btn-icon-danger" style="width: auto; padding: 12px 20px; border-radius: 12px; font-size: 13.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+                  <i data-lucide="log-out" style="width: 16px; height: 16px;"></i>
+                  <span>Keluar dari Akun</span>
+                </button>
                 <button id="btn-save-profile" type="submit" class="btn-primary-block" style="width: auto; padding: 13px 32px;">
                   <i data-lucide="save" style="width: 16px; height: 16px;"></i>
                   <span>Simpan Perubahan Profil</span>
@@ -1205,7 +1216,7 @@
     <div id="toast-container"></div>
 
     <!-- Modal Konfirmasi Dialog Universal -->
-    <div id="confirm-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
+    <div id="confirm-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.7); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
       <div class="card-portal" style="max-width: 400px; width: 100%; padding: 28px; background: #ffffff; box-shadow: var(--shadow-xl); transform: scale(1); transition: transform 0.2s;">
         <div style="width: 48px; height: 48px; border-radius: 14px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
           <i data-lucide="alert-triangle" style="width: 24px; height: 24px;"></i>
@@ -1224,7 +1235,7 @@
     </div>
 
     <!-- Modal Bukti Absensi Sukses (Boarding Pass / Certificate Receipt) -->
-    <div id="proof-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.75); backdrop-filter: blur(12px); display: none; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
+    <div id="proof-modal" class="hidden" style="position: fixed; inset: 0; z-index: 70; background: rgba(7, 23, 44, 0.75); backdrop-filter: blur(12px); align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true">
       <div class="card-portal" style="max-width: 440px; width: 100%; padding: 32px 28px; background: #ffffff; box-shadow: var(--shadow-xl); text-align: center;">
         <div style="width: 72px; height: 72px; margin: 0 auto 16px;">
           <svg style="width: 100%; height: 100%;" viewBox="0 0 52 52">

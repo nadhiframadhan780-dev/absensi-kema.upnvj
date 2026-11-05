@@ -120,7 +120,26 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupGlobalEventListeners() {
   const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
+  }
+
+  const profileLogoutBtn = document.getElementById('btn-profile-logout');
+  if (profileLogoutBtn) {
+    profileLogoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
+  }
+
+  const dashLogoutBtn = document.getElementById('btn-dash-logout');
+  if (dashLogoutBtn) {
+    dashLogoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
   }
 
   const confirmCancel = document.getElementById('confirm-modal-cancel');
@@ -153,15 +172,25 @@ function initAuthObserver() {
       updateNavbarUserInfo();
 
       const route = window.location.hash || '#/';
-      if (!isProfileComplete() && route !== '#/profil') {
+      const complete = isProfileComplete();
+
+      if (!complete && route !== '#/profil') {
         navigateTo('#/profil');
         showToast('info', 'Lengkapi Profil', 'Harap lengkapi profil mahasiswa Anda untuk membuka akses presensi.');
-      } else if (route === '#/login') {
-        navigateTo('#/beranda');
+      } else if (complete) {
+        // Jika profil sudah 100% lengkap, langsung arahkan ke Dashboard (Beranda)
+        if (['#/', '', '#/login', '#/prodi'].includes(route)) {
+          navigateTo('#/beranda');
+        }
       }
     } else {
       state.studentProfile = null;
       state.attendanceList = [];
+      state.leaveRequests = [];
+      if (state.unsubscribeLeave) {
+        state.unsubscribeLeave();
+        state.unsubscribeLeave = null;
+      }
       updateNavbarUserInfo();
 
       const protectedRoutes = ['#/beranda', '#/absensi', '#/pengajuan', '#/riwayat', '#/profil'];
@@ -177,7 +206,8 @@ function initAuthObserver() {
 
 function isProfileComplete() {
   if (!state.studentProfile) return false;
-  return Boolean(state.studentProfile.profileComplete);
+  if (state.studentProfile.profileComplete === true) return true;
+  return calculateProfileProgress(state.studentProfile) >= 100;
 }
 
 async function loadStudentProfile(uid) {
@@ -222,6 +252,7 @@ function updateNavbarUserInfo() {
   const guestSection = document.getElementById('nav-guest-section');
   const desktopLinks = document.getElementById('desktop-nav-links');
   const bottomNav = document.querySelector('.mobile-bottom-nav');
+  const brandLink = document.querySelector('.brand-wrapper');
 
   const avatarImg = document.getElementById('nav-user-avatar');
   const initialDiv = document.getElementById('nav-user-initial');
@@ -229,6 +260,9 @@ function updateNavbarUserInfo() {
   const nimEl = document.getElementById('nav-user-nim');
 
   if (state.currentUser && state.studentProfile) {
+    if (brandLink) {
+      brandLink.setAttribute('href', isProfileComplete() ? '#/beranda' : '#/profil');
+    }
     if (userSection) {
       userSection.classList.remove('hidden');
       userSection.style.display = 'flex';
@@ -260,6 +294,9 @@ function updateNavbarUserInfo() {
       }
     }
   } else {
+    if (brandLink) {
+      brandLink.setAttribute('href', '#/');
+    }
     if (userSection) {
       userSection.classList.add('hidden');
       userSection.style.display = 'none';
@@ -288,6 +325,14 @@ function navigateTo(hash) {
 function handleNavigation(hash) {
   const cleanHash = hash.split('?')[0] || '#/';
   state.currentRoute = cleanHash;
+
+  // Jika sudah login dan profil sudah 100% lengkap, jika membuka landing, prodi, atau login, langsung arahkan ke Dashboard (Beranda)
+  if (state.currentUser && isProfileComplete()) {
+    if (['#/', '', '#/login', '#/prodi'].includes(cleanHash)) {
+      navigateTo('#/beranda');
+      return;
+    }
+  }
 
   const protectedRoutes = ['#/beranda', '#/absensi', '#/pengajuan', '#/riwayat', '#/profil'];
   if (protectedRoutes.includes(cleanHash) && !state.currentUser) {
@@ -663,9 +708,17 @@ async function handleNimLoginSubmit() {
       showToast('success', 'Pendaftaran Berhasil', `Selamat datang, ${name}. Harap lengkapi profil Anda.`);
       navigateTo('#/profil');
     } else {
-      await signInWithEmailAndPassword(auth, email, password);
-      showToast('success', 'Berhasil Masuk', 'Selamat datang di Sistem Absensi UPNVJ.');
-      navigateTo('#/beranda');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await loadStudentProfile(userCredential.user.uid);
+      updateNavbarUserInfo();
+
+      if (isProfileComplete()) {
+        showToast('success', 'Berhasil Masuk', 'Selamat datang kembali di Sistem Absensi UPNVJ.');
+        navigateTo('#/beranda');
+      } else {
+        showToast('info', 'Lengkapi Profil', 'Harap lengkapi profil mahasiswa Anda.');
+        navigateTo('#/profil');
+      }
     }
   } catch (error) {
     console.error('Error login/daftar NIM:', error);
@@ -697,8 +750,16 @@ async function handleGoogleLogin() {
       return;
     }
 
-    showToast('success', 'Login Berhasil', `Selamat datang, ${user.displayName || 'Mahasiswa'}.`);
-    navigateTo('#/beranda');
+    await loadStudentProfile(user.uid);
+    updateNavbarUserInfo();
+
+    if (isProfileComplete()) {
+      showToast('success', 'Login Berhasil', `Selamat datang kembali, ${user.displayName || 'Mahasiswa'}.`);
+      navigateTo('#/beranda');
+    } else {
+      showToast('info', 'Lengkapi Profil', 'Harap lengkapi profil mahasiswa Anda.');
+      navigateTo('#/profil');
+    }
   } catch (error) {
     console.error('Error Google Auth:', error);
     if (error.code === 'auth/popup-closed-by-user') {
@@ -714,26 +775,32 @@ async function handleGoogleLogin() {
 }
 
 async function handleLogout() {
-  const confirmed = await showConfirmDialog({
-    title: 'Keluar dari Sistem?',
-    message: 'Apakah Anda yakin ingin keluar dari akun Sistem Absensi UPNVJ?',
-    confirmText: 'Ya, Keluar',
-    cancelText: 'Batal',
-    isDestructive: true
-  });
-
-  if (confirmed) {
-    try {
-      await signOut(auth);
-      state.currentUser = null;
-      state.studentProfile = null;
-      state.attendanceList = [];
-      showToast('info', 'Telah Keluar', 'Anda telah berhasil keluar dari akun.');
-      navigateTo('#/');
-    } catch (e) {
-      console.error('Error logout:', e);
-      showToast('error', 'Error', 'Gagal keluar dari sesi.');
+  try {
+    if (state.unsubscribeLeave) {
+      state.unsubscribeLeave();
+      state.unsubscribeLeave = null;
     }
+    if (state.isScanning) {
+      stopCameraScanner();
+    }
+    if (typeof stopDynamicQrRotation === 'function') {
+      stopDynamicQrRotation();
+    }
+    await signOut(auth);
+  } catch (e) {
+    console.warn('Peringatan saat signOut auth:', e);
+  } finally {
+    state.currentUser = null;
+    state.studentProfile = null;
+    state.attendanceList = [];
+    state.leaveRequests = [];
+    sessionStorage.removeItem('upnvj_selected_faculty');
+    sessionStorage.removeItem('upnvj_selected_prodi');
+    state.selectedFaculty = null;
+    state.selectedProdi = null;
+    updateNavbarUserInfo();
+    showToast('info', 'Telah Keluar', 'Anda telah berhasil keluar dari akun Sistem Absensi.');
+    navigateTo('#/login');
   }
 }
 

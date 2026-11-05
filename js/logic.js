@@ -102,12 +102,8 @@ export function calculateProfileProgress(profile) {
     }
   }
 
-  // Tambahkan bonus poin jika ada foto profil
-  let totalScore = Math.round((filledCount / requiredFields.length) * 90);
-  if (profile.fotoURL && profile.fotoURL.trim().length > 0) {
-    totalScore += 10;
-  }
-  return Math.min(100, totalScore);
+  // Ke-12 field identitas lengkap = 100%
+  return Math.round((filledCount / requiredFields.length) * 100);
 }
 
 /**
@@ -291,15 +287,15 @@ export function getFileCategory(fileName = '', mimeType = '') {
  * Validasi Komprehensif Pengajuan Surat Izin / Sakit / Dispensasi Mahasiswa
  */
 export function validateLeaveSubmission({
-  jenis,
-  mataKuliah,
-  tanggalMulai,
-  tanggalSelesai,
-  alasan,
-  fileName,
-  fileSize,
-  fileMimeType
-}) {
+  jenis = '',
+  mataKuliah = '',
+  tanggalMulai = '',
+  tanggalSelesai = '',
+  alasan = '',
+  fileName = '',
+  fileSize = 0,
+  fileMimeType = ''
+} = {}) {
   // 1. Validasi Jenis Pengajuan
   const validTypes = ['Sakit', 'Izin', 'Dispensasi'];
   const normalizedJenis = validTypes.find(t => t.toLowerCase() === (jenis || '').trim().toLowerCase());
@@ -424,4 +420,41 @@ export function formatLeaveStatusBadge(status = 'Menunggu') {
       };
   }
 }
+
+/**
+ * Penentuan rute redirect cerdas:
+ * Jika mahasiswa sudah login dan profilnya sudah lengkap (100% atau profileComplete === true),
+ * maka saat mengakses halaman landing, login, atau prodi, sistem HARUS mengarahkan langsung ke dashboard (#/beranda).
+ * Jika profil belum lengkap, harus diarahkan ke profil (#/profil).
+ * Jika belum login dan mengakses protected route, arahkan ke login (#/login).
+ */
+export function checkAuthRedirect({ isAuthenticated, profile, currentRoute = '#/' }) {
+  const cleanRoute = (currentRoute || '#/').split('?')[0];
+  const protectedRoutes = ['#/beranda', '#/absensi', '#/pengajuan', '#/riwayat', '#/profil'];
+  const publicEntryRoutes = ['#/', '', '#/login', '#/prodi'];
+
+  if (!isAuthenticated) {
+    if (protectedRoutes.includes(cleanRoute)) {
+      return { redirect: true, target: '#/login', reason: 'Akses terbatas untuk akun terdaftar' };
+    }
+    return { redirect: false, target: cleanRoute };
+  }
+
+  const isComplete = Boolean(profile && (profile.profileComplete === true || calculateProfileProgress(profile) >= 100));
+
+  if (!isComplete) {
+    if (cleanRoute !== '#/profil') {
+      return { redirect: true, target: '#/profil', reason: 'Profil wajib dilengkapi 100%' };
+    }
+    return { redirect: false, target: cleanRoute };
+  }
+
+  // Jika sudah login & profil 100% lengkap, langsung arahkan ke Dashboard
+  if (publicEntryRoutes.includes(cleanRoute)) {
+    return { redirect: true, target: '#/beranda', reason: 'Profil 100% lengkap, langsung ke dashboard' };
+  }
+
+  return { redirect: false, target: cleanRoute };
+}
+
 
