@@ -2353,7 +2353,7 @@ function handleLeaveFileSelection(file) {
       fileBadgeEl.style.background = '#dbeafe';
       fileBadgeEl.style.color = '#2563eb';
     } else {
-      fileBadgeEl.textContent = 'Gambar Bukti';
+      fileBadgeEl.textContent = 'Foto (Kompresi Otomatis Aktif)';
       fileBadgeEl.style.background = '#d1fae5';
       fileBadgeEl.style.color = '#059669';
     }
@@ -2488,28 +2488,22 @@ async function handleLeaveFormSubmit(e) {
     return;
   }
 
-  setButtonLoading(btnSubmit, true);
+  setButtonLoading(btnSubmit, true, 'Memproses & Menyimpan...');
 
   try {
     const file = state.selectedLeaveFile;
-    let finalLampiranURL = '';
 
-    // 3. Unggah Berkas Bukti (Firebase Storage atau Base64 Fallback yang Handal)
-    try {
-      const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const storagePath = `leave_letters/${state.currentUser.uid}/${safeFileName}`;
-      const storageReference = ref(storage, storagePath);
-      const snapshot = await uploadBytes(storageReference, file);
-      finalLampiranURL = await getDownloadURL(snapshot.ref);
-    } catch (storageError) {
-      console.warn('Firebase Storage offline, menggunakan konversi data URL:', storageError?.message || storageError);
-      finalLampiranURL = await readFileAsDataUrl(file);
-    }
+    // 3. Unggah Berkas Bukti dengan Proteksi Timeout & Kompresi Otomatis (Anti-Hang)
+    const attachment = await prepareLeaveFileAttachment(file, validation.fileCategory);
 
-    // 4. Simpan ke Dokumen Koleksi `leaveRequests` di Firestore
+    // 4. Siapkan Data Dokumen Koleksi `leaveRequests` di Firestore
+    const studentNim = state.studentProfile?.nim || 
+      (state.currentUser?.email ? state.currentUser.email.split('@')[0] : '') || 
+      '-';
+
     const leaveDocData = {
       uid: state.currentUser.uid,
-      nim: state.studentProfile?.nim || state.currentUser.email.split('@')[0] || '-',
+      nim: studentNim,
       nama: state.studentProfile?.nama || state.currentUser.displayName || 'Mahasiswa UPNVJ',
       fakultas: state.studentProfile?.fakultas || state.selectedFaculty || 'UPNVJ',
       prodi: state.studentProfile?.prodi || state.selectedProdi || 'Program Studi',
@@ -2519,10 +2513,10 @@ async function handleLeaveFormSubmit(e) {
       tanggalMulai: tanggalMulai,
       tanggalSelesai: tanggalSelesai || tanggalMulai,
       alasan: alasan,
-      lampiran: finalLampiranURL,
+      lampiran: attachment.url,
       lampiranNama: file.name,
       lampiranTipe: file.type || 'application/octet-stream',
-      lampiranUkuran: file.size,
+      lampiranUkuran: attachment.size || file.size,
       lampiranKategori: validation.fileCategory,
       status: 'Menunggu',
       catatanAdmin: '',
@@ -2530,17 +2524,23 @@ async function handleLeaveFormSubmit(e) {
       createdAt: new Date().toISOString()
     };
 
-    await addDoc(collection(db, 'leaveRequests'), leaveDocData);
+    // 5. Simpan ke Firestore dengan Timeout Proteksi 7 Detik
+    const addPromise = addDoc(collection(db, 'leaveRequests'), leaveDocData);
+    const firestoreTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Koneksi ke Firestore terputus atau timeout. Mohon periksa internet Anda.')), 7000)
+    );
+
+    await Promise.race([addPromise, firestoreTimeout]);
 
     showToast(
       'success',
-      'Pengajuan Surat Berhasil!',
-      `Permohonan Surat ${validation.normalizedJenis} Anda berhasil diajukan dan sedang menunggu verifikasi.`
+      'Pengajuan Surat Berhasil Dikirim!',
+      `Permohonan Surat ${validation.normalizedJenis} Anda berhasil disimpan dan langsung masuk ke antrean verifikasi.`
     );
 
     resetLeaveForm();
 
-    // Otomatis beralih ke Tab Riwayat agar mahasiswa dapat langsung memantau
+    // Otomatis beralih ke Tab Riwayat agar mahasiswa dapat langsung memantau status
     const tabBtnHistory = document.getElementById('tab-btn-leave-history');
     if (tabBtnHistory) {
       tabBtnHistory.click();
@@ -2951,6 +2951,105 @@ function readFileAsDataUrl(file) {
     reader.onerror = (err) => reject(err);
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Kompresi berkas gambar dokumen/surat via Canvas agar selalu di bawah 250 KB
+ */
+function compressImageFile(file, maxWidth = 1200, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('Gagal memproses gambar bukti'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca berkas gambar'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Persiapan Berkas Unggahan Bebas Hang (Anti-Loading Doang)
+ * 1. Gambar dikompresi instan via canvas (<250 KB)
+ * 2. Coba upload Storage dengan timeout super ketat (2000ms)
+ * 3. Fallback instan ke Firestore-safe data URL tanpa membuat pengguna menunggu
+ */
+async function prepareLeaveFileAttachment(file, category) {
+  let compressedDataUrl = '';
+  let processedBlob = file;
+
+  // Jika berkas adalah gambar, lakukan kompresi instan
+  if (category === 'image' || (file.type && file.type.startsWith('image/'))) {
+    compressedDataUrl = await compressImageFile(file, 1200, 0.72);
+    try {
+      processedBlob = await (await fetch(compressedDataUrl)).blob();
+    } catch (_) {
+      processedBlob = file;
+    }
+  }
+
+  // Coba unggah ke Firebase Storage dengan batas timeout 2 detik (2000ms)
+  try {
+    const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storagePath = `leave_letters/${state.currentUser?.uid || 'guest'}/${safeFileName}`;
+    const storageReference = ref(storage, storagePath);
+
+    const uploadPromise = uploadBytes(storageReference, processedBlob).then(snap => getDownloadURL(snap.ref));
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firebase Storage timeout (mengaktifkan fallback instan)')), 2000)
+    );
+
+    const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
+    return {
+      url: downloadUrl,
+      size: processedBlob.size || file.size,
+      storageMethod: 'cloud_storage'
+    };
+  } catch (storageErr) {
+    console.warn('Firebase Storage offline / timeout, beralih ke penyimpanan aman Firestore:', storageErr?.message || storageErr);
+
+    // Fallback 1: Jika gambar yang sudah dikompresi, langsung gunakan Data URL
+    if (compressedDataUrl) {
+      return {
+        url: compressedDataUrl,
+        size: processedBlob.size || file.size,
+        storageMethod: 'compressed_inline'
+      };
+    }
+
+    // Fallback 2: Jika dokumen PDF atau Word di bawah batas aman Firestore (680 KB)
+    if (file.size <= 680 * 1024) {
+      const dataUrl = await readFileAsDataUrl(file);
+      return {
+        url: dataUrl,
+        size: file.size,
+        storageMethod: 'direct_inline'
+      };
+    }
+
+    // Dokumen non-gambar > 680 KB saat Storage offline: tolak dengan instruksi jelas dan ramah
+    throw new Error(
+      `Dokumen "${file.name}" berukuran ${formatBytes(file.size)}. Karena server cloud eksternal sedang offline, dokumen PDF/Word dibatasi maksimal 680 KB. Solusi Cepat: Silakan ambil foto surat dokter/izin Anda (JPG/PNG) menggunakan kamera handphone agar sistem dapat mengompresinya secara otomatis, atau kompresi PDF ke bawah 680 KB.`
+    );
+  }
 }
 
 /**

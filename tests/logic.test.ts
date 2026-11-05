@@ -17,7 +17,9 @@ import {
   formatLeaveStatusBadge,
   ALLOWED_LEAVE_EXTENSIONS,
   MAX_LEAVE_FILE_SIZE_BYTES,
-  checkAuthRedirect
+  checkAuthRedirect,
+  getOptimalUploadStrategy,
+  MAX_SAFE_FIRESTORE_DOC_BYTES
 } from '../js/logic.js';
 import { FACULTIES, getFacultyById, getProdiList, FK_SPECIAL_NOTE } from '../js/data.js';
 
@@ -355,5 +357,26 @@ test('Pengalihan Dashboard: Profil 100% lengkap langsung diarahkan ke #/beranda'
   assert.equal(r6.redirect, true);
   assert.equal(r6.target, '#/login');
 });
+
+test('Strategi Unggah & Anti-Hang Firestore: Kompresi gambar dan proteksi berkas besar', () => {
+  // 1. Gambar selalu menggunakan strategi kompresi canvas sehingga selalu muat di Firestore
+  const imgStrategy = getOptimalUploadStrategy(4 * 1024 * 1024, 'image');
+  assert.equal(imgStrategy.shouldCompressImage, true);
+  assert.equal(imgStrategy.safeForFirestoreFallback, true);
+  assert.equal(imgStrategy.strategy, 'canvas-compress');
+
+  // 2. Berkas dokumen (PDF / Word) di bawah 680 KB aman untuk fallback Base64
+  const docSmall = getOptimalUploadStrategy(300 * 1024, 'pdf');
+  assert.equal(docSmall.shouldCompressImage, false);
+  assert.equal(docSmall.safeForFirestoreFallback, true);
+  assert.equal(docSmall.strategy, 'direct-base64');
+
+  // 3. Berkas dokumen di atas 680 KB ditandai storage-required untuk mencegah Firestore error 1MB
+  const docLarge = getOptimalUploadStrategy(2 * 1024 * 1024, 'pdf');
+  assert.equal(docLarge.shouldCompressImage, false);
+  assert.equal(docLarge.safeForFirestoreFallback, false);
+  assert.equal(docLarge.strategy, 'storage-required');
+});
+
 
 

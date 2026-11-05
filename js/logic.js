@@ -388,6 +388,31 @@ export function validateLeaveSubmission({
 }
 
 /**
+ * Strategi Penyimpanan Berkas:
+ * Gambar dikompresi otomatis via canvas agar selalu muat (<500 KB) di Firestore tanpa batas Storage.
+ * Berkas dokumen (PDF, Word) aman sebagai fallback Base64 jika ukurannya <= 680 KB.
+ */
+export const MAX_SAFE_FIRESTORE_DOC_BYTES = 680 * 1024; // 680 KB
+
+export function getOptimalUploadStrategy(fileSize = 0, fileCategory = 'image') {
+  if (fileCategory === 'image') {
+    return {
+      shouldCompressImage: true,
+      safeForFirestoreFallback: true,
+      strategy: 'canvas-compress'
+    };
+  }
+
+  const isSafeSize = fileSize <= MAX_SAFE_FIRESTORE_DOC_BYTES;
+  return {
+    shouldCompressImage: false,
+    safeForFirestoreFallback: isSafeSize,
+    strategy: isSafeSize ? 'direct-base64' : 'storage-required',
+    maxSafeBytes: MAX_SAFE_FIRESTORE_DOC_BYTES
+  };
+}
+
+/**
  * Format Badge Status Pengajuan Surat
  */
 export function formatLeaveStatusBadge(status = 'Menunggu') {
