@@ -424,6 +424,44 @@ test('Surat Keputusan Resmi: Format Nomor Naskah Dinas, Dekan Fakultas, dan Cap 
   assert.equal(dekanFIKES.nip, '196708221990032001');
 });
 
+test('Surat Keputusan Resmi: Posisi Stempel di Area Dekan (cx=148) dan Tanda Tangan Mahasiswa Ber-Materai', async () => {
+  const { drawOfficialUniversityStamp } = await import('../js/officialLetterPdf.js');
+
+  // Cek parameter default stempel institusi
+  // Stempel resmi institusi berada di tempat Dekan (cx = 148 mm)
+  assert.equal(typeof drawOfficialUniversityStamp, 'function');
+
+  // Dummy mock document to verify call parameters
+  let calledCx = null;
+  let calledCy = null;
+  let calledColor = null;
+
+  const mockDoc: any = {
+    saveGraphicsState() {},
+    restoreGraphicsState() {},
+    setGState() {},
+    setDrawColor(r: number, g: number, b: number) { calledColor = [r, g, b]; },
+    setTextColor() {},
+    setLineWidth() {},
+    circle(cx: number, cy: number) { calledCx = cx; calledCy = cy; },
+    line() {},
+    setFont() {},
+    setFontSize() {},
+    text() {}
+  };
+
+  // Panggil stempel disetujui (default area dekan cx = 148 mm)
+  drawOfficialUniversityStamp(mockDoc, { status: 'Disetujui' });
+  assert.equal(calledCx, 148, 'Stempel resmi wajib berposisi di area tanda tangan Dekan (cx = 148 mm)');
+  assert.deepEqual(calledColor, [5, 150, 105], 'Stempel disetujui wajib berwarna HIJAU');
+
+  // Panggil stempel ditolak
+  drawOfficialUniversityStamp(mockDoc, { status: 'Ditolak' });
+  assert.equal(calledCx, 148, 'Stempel resmi wajib berposisi di area tanda tangan Dekan (cx = 148 mm)');
+  assert.deepEqual(calledColor, [220, 38, 38], 'Stempel ditolak wajib berwarna MERAH');
+});
+
+
 
 
 

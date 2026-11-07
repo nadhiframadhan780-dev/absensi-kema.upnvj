@@ -1,7 +1,12 @@
 /**
  * Modul Generator Surat Keputusan Resmi Ketidakhadiran (Izin / Sakit / Dispensasi)
  * Universitas Pembangunan Nasional "Veteran" Jakarta - Admin Side
- * Sesuai format naskah dinas resmi institusi A4 1 lembar dengan cap stempel warna aman anti-edit.
+ * Sesuai format naskah dinas resmi institusi A4 1 lembar:
+ * - Layout rapi, proporsional, tanpa tumpang tindih teks (zero text overlapping)
+ * - Stempel Resmi Berwarna (HIJAU jika Disetujui, MERAH jika Ditolak) tepat di TENGAH
+ * - Kolom Tanda Tangan Mahasiswa Pemohon lengkap dengan Kotak MATERAI Rp 10.000, Nama & NIM otomatis
+ * - Kolom Tanda Tangan Dekan Fakultas & NIP Resmi
+ * - QR Code Verifikasi SIAKAD & ID Dokumen Digital
  */
 
 import { getDekanByFaculty } from './data.js';
@@ -175,9 +180,9 @@ async function loadLogoBase64() {
 }
 
 export function drawOfficialUniversityStamp(doc, {
-  cx = 160,
-  cy = 245,
-  radius = 18,
+  cx = 148,
+  cy = 205,
+  radius = 17,
   status = 'Disetujui',
   fakultasCode = 'FIK',
   tanggalStr = '2026',
@@ -198,35 +203,42 @@ export function drawOfficialUniversityStamp(doc, {
   doc.setDrawColor(r, g, b);
   doc.setTextColor(r, g, b);
 
-  doc.setLineWidth(0.8);
+  // 1. Lingkaran Luar Ganda
+  doc.setLineWidth(0.85);
   doc.circle(cx, cy, radius, 'S');
 
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.35);
   doc.circle(cx, cy, radius - 1.2, 'S');
 
+  // 2. Lingkaran Dalam
   doc.setLineWidth(0.5);
   doc.circle(cx, cy, radius - 4.5, 'S');
 
+  // 3. Garis Pembatas Pita Tengah
   doc.setLineWidth(0.4);
-  doc.line(cx - radius + 3, cy - 3.2, cx + radius - 3, cy - 3.2);
-  doc.line(cx - radius + 3, cy + 3.2, cx + radius - 3, cy + 3.2);
+  doc.line(cx - radius + 3, cy - 3.4, cx + radius - 3, cy - 3.4);
+  doc.line(cx - radius + 3, cy + 3.4, cx + radius - 3, cy + 3.4);
 
+  // 4. Bintang Kiri-Kanan Pita
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.text('★', cx - radius + 4.5, cy + 1.2, { align: 'center' });
   doc.text('★', cx + radius - 4.5, cy + 1.2, { align: 'center' });
 
+  // 5. Teks Busur Atas
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.2);
-  doc.text('KEMENDIKTISAINTEK RI', cx, cy - radius + 3.2, { align: 'center' });
+  doc.text('KEMENDIKTISAINTEK RI', cx, cy - radius + 3.4, { align: 'center' });
   doc.setFontSize(4.8);
-  doc.text(`UPN "VETERAN" JAKARTA`, cx, cy - radius + 5.6, { align: 'center' });
+  doc.text(`UPN "VETERAN" JAKARTA`, cx, cy - radius + 6.0, { align: 'center' });
 
+  // 6. TEKS UTAMA KEPUTUSAN DI TENGAH STEMPEL
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.8);
   const statusText = isApproved ? 'DISETUJUI' : 'DITOLAK';
   doc.text(statusText, cx, cy + 1.2, { align: 'center' });
 
+  // 7. Teks Busur Bawah
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(4.8);
   doc.text(`FAKULTAS ${fakultasCode.toUpperCase()}`, cx, cy + radius - 3.8, { align: 'center' });
@@ -263,199 +275,308 @@ export async function generateOfficialLeavePdf({
   const logoData = await loadLogoBase64();
   if (logoData) {
     try {
-      doc.addImage(logoData, 'PNG', 16, 12, 24, 24);
+      doc.addImage(logoData, 'PNG', 16, 10, 22, 22);
     } catch (e) {
       console.warn('Gagal memuat logo gambar ke PDF:', e);
     }
   }
 
   doc.setFont('times', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setTextColor(11, 35, 65);
-  doc.text('KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI', 115, 17, { align: 'center' });
+  doc.text('KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI', 116, 14, { align: 'center' });
 
-  doc.setFontSize(13);
-  doc.text('UNIVERSITAS PEMBANGUNAN NASIONAL "VETERAN" JAKARTA', 115, 23, { align: 'center' });
+  doc.setFontSize(12.5);
+  doc.text('UNIVERSITAS PEMBANGUNAN NASIONAL "VETERAN" JAKARTA', 116, 19.5, { align: 'center' });
 
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(dekanInfo.fakultasName.toUpperCase(), 115, 29, { align: 'center' });
+  doc.text(dekanInfo.fakultasName.toUpperCase(), 116, 24.5, { align: 'center' });
 
   doc.setFont('times', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text('Jalan Rumah Sakit Fatmawati No. 1 Pondok Labu, Jakarta Selatan 12450', 115, 34, { align: 'center' });
-  doc.text('Telepon (021) 7656971, Fax (021) 7656904 | Laman: www.upnvj.ac.id | Pos-el: upnvj@upnvj.ac.id', 115, 38, { align: 'center' });
+  doc.text('Jalan Rumah Sakit Fatmawati No. 1 Pondok Labu, Jakarta Selatan 12450', 116, 29, { align: 'center' });
+  doc.text('Telepon (021) 7656971 | Laman: www.upnvj.ac.id | Pos-el: upnvj@upnvj.ac.id', 116, 32.5, { align: 'center' });
 
-  // Garis ganda
+  // Garis Ganda Kop Surat
   doc.setDrawColor(11, 35, 65);
-  doc.setLineWidth(0.8);
-  doc.line(16, 42, 194, 42);
+  doc.setLineWidth(0.75);
+  doc.line(16, 36, 194, 36);
   doc.setLineWidth(0.25);
-  doc.line(16, 43, 194, 43);
+  doc.line(16, 37, 194, 37);
 
   // 2. JUDUL & NOMOR SURAT KEPUTUSAN
   doc.setFont('times', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(11.5);
   doc.setTextColor(11, 35, 65);
-  doc.text('SURAT KETERANGAN RESMI KETIDAKHADIRAN MAHASISWA', 105, 50, { align: 'center' });
+  doc.text('SURAT KETERANGAN RESMI KETIDAKHADIRAN MAHASISWA', 105, 43.5, { align: 'center' });
 
+  const titleWidth = doc.getTextWidth('SURAT KETERANGAN RESMI KETIDAKHADIRAN MAHASISWA');
   doc.setLineWidth(0.3);
-  doc.line(48, 51, 162, 51);
+  doc.line(105 - (titleWidth / 2), 44.5, 105 + (titleWidth / 2), 44.5);
 
   doc.setFont('times', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Nomor: ${nomorSurat}`, 105, 56, { align: 'center' });
+  doc.text(`Nomor: ${nomorSurat}`, 105, 49, { align: 'center' });
 
-  // 3. YTH
-  let y = 64;
+  // 3. IDENTITAS TUJUAN SURAT & PENGANTAR
+  let curY = 55;
   doc.setFont('times', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
 
-  doc.text('Yth.', 16, y);
-  y += 5;
-  doc.setFont('times', 'bold');
-  doc.text('Bapak/Ibu Dosen Pengampu & Penanggung Jawab Mata Kuliah', 16, y);
-  y += 5;
-  doc.setFont('times', 'normal');
-  doc.text(`di Lingkungan ${dekanInfo.fakultasName}`, 16, y);
-  y += 5;
-  doc.text('Universitas Pembangunan Nasional "Veteran" Jakarta', 16, y);
+  doc.text('Yth. Bapak/Ibu Dosen Pengampu & Penanggung Jawab Mata Kuliah', 16, curY);
+  curY += 4.2;
+  doc.text(`di Lingkungan ${dekanInfo.fakultasName}, UPN "Veteran" Jakarta`, 16, curY);
 
-  // 4. PARAGRAF
-  y += 8;
-  doc.setFont('times', 'normal');
+  curY += 6;
   doc.text(
-    'Berdasarkan permohonan ketidakhadiran perkuliahan yang diajukan oleh mahasiswa melalui Sistem Informasi Presensi Mahasiswa SIAKAD UPNVJ, bersama ini kami sampaikan data pemohon sebagai berikut:',
+    'Berdasarkan permohonan ketidakhadiran perkuliahan yang diajukan melalui Sistem Informasi Presensi Mahasiswa SIAKAD UPNVJ, bersama ini kami sampaikan data pemohon sebagai berikut:',
     16,
-    y,
-    { maxWidth: 178, align: 'justify', lineHeightFactor: 1.35 }
+    curY,
+    { maxWidth: 178, align: 'justify', lineHeightFactor: 1.25 }
   );
 
-  // 5. TABEL BIODATA
-  y += 14;
-  const tableData = [
-    ['Nama Lengkap', `: ${leaveData.nama || '-'}`],
-    ['Nomor Induk Mahasiswa (NIM)', `: ${leaveData.nim || '-'}`],
-    ['Program Studi', `: ${leaveData.prodi || '-'}`],
-    ['Fakultas', `: ${dekanInfo.fakultasName}`],
-    ['Mata Kuliah', `: ${leaveData.mataKuliah || 'Seluruh Perkuliahan Terjadwal'}`],
-    ['Jenis Permohonan', `: ${leaveData.jenis || 'Izin'} Perkuliahan`],
-    ['Periode Berhalangan', `: ${leaveData.tanggalMulai} ${leaveData.tanggalSelesai && leaveData.tanggalSelesai !== leaveData.tanggalMulai ? 's/d ' + leaveData.tanggalSelesai : ''}`],
-    ['Alasan / Keterangan', `: ${leaveData.alasan || '-'}`],
-    ['Dokumen Bukti Lampiran', `: ${leaveData.lampiranNama || 'Terlampir dalam Berkas Digital SIAKAD'}`]
+  // 4. TABEL BIODATA MAHASISWA (DYNAMIC ROW HEIGHT - ANTI NYATU)
+  curY += 9;
+
+  const dateRangeStr = leaveData.tanggalMulai === leaveData.tanggalSelesai || !leaveData.tanggalSelesai
+    ? leaveData.tanggalMulai
+    : `${leaveData.tanggalMulai} s/d ${leaveData.tanggalSelesai}`;
+
+  const tableRows = [
+    { label: 'Nama Lengkap Mahasiswa', val: leaveData.nama || '-' },
+    { label: 'Nomor Induk Mahasiswa (NIM)', val: leaveData.nim || '-' },
+    { label: 'Program Studi / Fakultas', val: `${leaveData.prodi || '-'} / ${dekanInfo.fakultasName}` },
+    { label: 'Mata Kuliah', val: leaveData.mataKuliah || 'Seluruh Perkuliahan Terjadwal' },
+    { label: 'Jenis Permohonan', val: `${leaveData.jenis || 'Izin'} Perkuliahan` },
+    { label: 'Periode Berhalangan', val: dateRangeStr },
+    { label: 'Alasan / Keterangan', val: leaveData.alasan || '-' }
   ];
+
+  const calculatedRows = tableRows.map(row => {
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.5);
+    const wrappedLines = doc.splitTextToSize(`: ${row.val}`, 115);
+    const rowHeight = Math.max(wrappedLines.length * 4.0, 4.8);
+    return { ...row, wrappedLines, rowHeight };
+  });
+
+  const totalTableHeight = calculatedRows.reduce((sum, r) => sum + r.rowHeight, 0) + 4;
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
-  doc.roundedRect(16, y - 2, 178, 48, 2, 2, 'FD');
+  doc.roundedRect(16, curY, 178, totalTableHeight, 2, 2, 'FD');
 
-  let rowY = y + 3;
-  tableData.forEach(([label, val]) => {
+  let tableRowY = curY + 3.2;
+  calculatedRows.forEach((row, idx) => {
     doc.setFont('times', 'bold');
-    doc.setFontSize(9.5);
+    doc.setFontSize(8.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(label, 20, rowY);
+    doc.text(row.label, 20, tableRowY);
 
     doc.setFont('times', 'normal');
     doc.setTextColor(15, 23, 42);
-    doc.text(val, 80, rowY, { maxWidth: 110 });
-    rowY += 5;
+    doc.text(row.wrappedLines, 74, tableRowY);
+
+    tableRowY += row.rowHeight;
+
+    if (idx < calculatedRows.length - 1) {
+      doc.setDrawColor(241, 245, 249);
+      doc.setLineWidth(0.2);
+      doc.line(20, tableRowY - 0.8, 190, tableRowY - 0.8);
+    }
   });
 
-  // 6. KOTAK KEPUTUSAN DEKAN
-  y = 142;
+  curY += totalTableHeight + 5;
+
+  // 5. KOTAK KEPUTUSAN DEKAN
   doc.setFont('times', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(8.8);
   doc.setTextColor(15, 23, 42);
   doc.text(
-    'Setelah dilakukan pemeriksaan berkas keterangan dan verifikasi administrasi akademik, dengan ini Dekan memberikan keputusan sebagai berikut:',
+    'Setelah dilakukan pemeriksaan berkas dan verifikasi administrasi akademik, dengan ini Dekan menerbitkan keputusan:',
     16,
-    y,
+    curY,
     { maxWidth: 178, align: 'justify' }
   );
 
-  y += 7;
+  curY += 5;
   if (isApproved) {
     doc.setFillColor(240, 253, 244);
     doc.setDrawColor(5, 150, 105);
     doc.setLineWidth(0.6);
-    doc.roundedRect(16, y, 178, 18, 2, 2, 'FD');
+    doc.roundedRect(16, curY, 178, 15, 2, 2, 'FD');
 
     doc.setFont('times', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(10.5);
     doc.setTextColor(5, 150, 105);
-    doc.text('STATUS: DISETUJUI (DIBERIKAN DISPENSASI/IZIN KULIAH)', 105, y + 7, { align: 'center' });
+    doc.text('STATUS: DISETUJUI (DIBERIKAN DISPENSASI/IZIN KULIAH)', 105, curY + 6, { align: 'center' });
 
     doc.setFont('times', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(22, 101, 52);
-    doc.text('Mahasiswa diberikan dispensasi absensi resmi untuk periode yang diajukan dan tercatat sah pada sistem perkuliahan.', 105, y + 13, { align: 'center' });
+    doc.text('Mahasiswa diberikan dispensasi absensi resmi untuk periode yang diajukan dan tercatat sah pada SIAKAD UPNVJ.', 105, curY + 11, { align: 'center' });
   } else {
     doc.setFillColor(254, 242, 242);
     doc.setDrawColor(220, 38, 38);
     doc.setLineWidth(0.6);
-    doc.roundedRect(16, y, 178, 18, 2, 2, 'FD');
+    doc.roundedRect(16, curY, 178, 15, 2, 2, 'FD');
 
     doc.setFont('times', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(10.5);
     doc.setTextColor(220, 38, 38);
-    doc.text('STATUS: DITOLAK (TIDAK MEMENUHI SYARAT)', 105, y + 7, { align: 'center' });
+    doc.text('STATUS: DITOLAK (TIDAK MEMENUHI SYARAT)', 105, curY + 6, { align: 'center' });
 
     doc.setFont('times', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(153, 27, 27);
     const catatan = leaveData.catatanAdmin ? `Alasan: ${leaveData.catatanAdmin}` : 'Bukti dokumen pendukung tidak memenuhi ketentuan akademik.';
-    doc.text(catatan, 105, y + 13, { align: 'center', maxWidth: 170 });
+    doc.text(catatan, 105, curY + 11, { align: 'center', maxWidth: 170 });
   }
 
-  // 7. KLAUSUL WAJIB PRINT
-  y += 24;
+  curY += 19;
+
+  // 6. KOTAK INSTRUKSI WAJIB PRINT & WAJIB TEMPEL MATERAI
   doc.setFillColor(254, 249, 195);
   doc.setDrawColor(202, 138, 4);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(16, y, 178, 16, 2, 2, 'FD');
+  doc.setLineWidth(0.35);
+  doc.roundedRect(16, curY, 178, 13, 2, 2, 'FD');
 
   doc.setFont('times', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(8.5);
   doc.setTextColor(133, 77, 14);
-  doc.text('PERHATIAN & KEWAJIBAN MAHASISWA:', 20, y + 5);
+  doc.text('PERHATIAN & KEWAJIBAN MAHASISWA:', 20, curY + 4.5);
+
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(113, 63, 18);
+  doc.text(
+    'Mahasiswa bersangkutan WAJIB MENCETAK (PRINT A4) surat ini, MENEMPELKAN MATERAI Rp 10.000 pada kolom yang disediakan, menandatanganinya, dan menyerahkannya kepada Dosen Pengampu / Penanggung Jawab Mata Kuliah.',
+    20,
+    curY + 8.5,
+    { maxWidth: 170, lineHeightFactor: 1.2 }
+  );
+
+  curY += 18;
+
+  // 7. PENGESAHAN DUA PIHAK: MAHASISWA (MATERAI) + STEMPEL DI TENGAH + DEKAN
+  const leftColX = 54;
+  const centerColX = 105;
+  const rightColX = 156;
+  const sigStartY = curY;
+
+  // SISI KIRI: MAHASISWA
+  doc.setFont('times', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Mahasiswa Pemohon,', leftColX, sigStartY, { align: 'center' });
+
+  const materaiBoxW = 28;
+  const materaiBoxH = 17;
+  const materaiBoxX = leftColX - (materaiBoxW / 2);
+  const materaiBoxY = sigStartY + 4;
+
+  doc.saveGraphicsState && doc.saveGraphicsState();
+  doc.setDrawColor(202, 138, 4);
+  doc.setFillColor(254, 252, 232);
+  if (doc.setLineDashPattern) {
+    doc.setLineDashPattern([1.5, 1], 0);
+  }
+  doc.setLineWidth(0.4);
+  doc.rect(materaiBoxX, materaiBoxY, materaiBoxW, materaiBoxH, 'FD');
+  doc.restoreGraphicsState && doc.restoreGraphicsState();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(161, 98, 7);
+  doc.text('MATERAI', leftColX, materaiBoxY + 5.5, { align: 'center' });
+  doc.setFontSize(6.8);
+  doc.text('Rp 10.000', leftColX, materaiBoxY + 10, { align: 'center' });
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(5.2);
+  doc.setTextColor(180, 83, 9);
+  doc.text('(Tempel di sini)', leftColX, materaiBoxY + 14, { align: 'center' });
+
+  doc.setFont('times', 'italic');
+  doc.setFontSize(6.2);
+  doc.setTextColor(100, 116, 139);
+  doc.text('*(Tanda tangan mengenai materai)', leftColX, materaiBoxY + materaiBoxH + 4, { align: 'center' });
+
+  const studentNameY = sigStartY + 33;
+  doc.setFont('times', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(11, 35, 65);
+  const studentName = leaveData.nama || 'Nama Mahasiswa';
+  doc.text(studentName, leftColX, studentNameY, { align: 'center' });
+
+  const studentNameW = doc.getTextWidth(studentName);
+  doc.setLineWidth(0.3);
+  doc.setDrawColor(11, 35, 65);
+  doc.line(leftColX - (studentNameW / 2), studentNameY + 1, leftColX + (studentNameW / 2), studentNameY + 1);
 
   doc.setFont('times', 'normal');
   doc.setFontSize(8.5);
-  doc.setTextColor(113, 63, 18);
-  doc.text(
-    'Mahasiswa bersangkutan WAJIB MENCETAK (PRINT A4) surat keputusan resmi ini dan menyerahkannya kepada Dosen Pengampu / Penanggung Jawab Mata Kuliah saat pertemuan berikutnya sebagai bukti ketidakhadiran yang sah.',
-    20,
-    y + 9.5,
-    { maxWidth: 170, lineHeightFactor: 1.25 }
-  );
+  doc.setTextColor(51, 65, 85);
+  doc.text(`NIM. ${leaveData.nim || '-'}`, leftColX, studentNameY + 5, { align: 'center' });
 
-  // 8. TANDA TANGAN & STEMPEL
-  y = 212;
-
-  doc.setFont('times', 'bold');
+  // SISI KANAN: DEKAN
+  doc.setFont('times', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(11, 35, 65);
-  doc.text('Validasi Sistem Digital:', 16, y);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Jakarta, ${tanggalKeputusan}`, rightColX, sigStartY, { align: 'center' });
+  doc.setFont('times', 'bold');
+  doc.text('Mengesahkan,', rightColX, sigStartY + 4.2, { align: 'center' });
+  doc.text(`Dekan ${dekanInfo.fakultasName},`, rightColX, sigStartY + 8.4, { align: 'center' });
 
-  const qrBoxX = 16;
-  const qrBoxY = y + 4;
-  const qrSize = 26;
+  const dekanNameY = sigStartY + 33;
+  doc.setFont('times', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(11, 35, 65);
+  doc.text(dekanInfo.nama, rightColX, dekanNameY, { align: 'center' });
+
+  const dekanNameW = doc.getTextWidth(dekanInfo.nama);
+  doc.setLineWidth(0.3);
+  doc.setDrawColor(11, 35, 65);
+  doc.line(rightColX - (dekanNameW / 2), dekanNameY + 1, rightColX + (dekanNameW / 2), dekanNameY + 1);
+
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`NIP. ${dekanInfo.nip}`, rightColX, dekanNameY + 5, { align: 'center' });
+
+  // POSISI STEMPEL RESMI PADA BAGIAN PENGESAHAN DEKAN
+  drawOfficialUniversityStamp(doc, {
+    cx: rightColX - 8,
+    cy: sigStartY + 20,
+    radius: 17,
+    status: decision,
+    fakultasCode: dekanInfo.fakultasCode,
+    tanggalStr: String(new Date().getFullYear()),
+    docToken
+  });
+
+  // 8. KOTAK VALIDASI DIGITAL SIAKAD (FOOTER)
+  const footerBoxY = 252;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(16, footerBoxY, 178, 22, 2, 2, 'FD');
+
+  const qrBoxX = 20;
+  const qrBoxY = footerBoxY + 2.5;
+  const qrSize = 17;
 
   try {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 120;
-    tempCanvas.height = 120;
+    const tempDiv = document.createElement('div');
     if (window.QRCode) {
-      const tempDiv = document.createElement('div');
       new window.QRCode(tempDiv, {
         text: `https://absensi.upnvj.ac.id/#/verifikasi?token=${docToken}&nim=${leaveData.nim}`,
-        width: 120,
-        height: 120,
+        width: 100,
+        height: 100,
         correctLevel: 2
       });
       const qrCanvas = tempDiv.querySelector('canvas');
@@ -467,73 +588,32 @@ export async function generateOfficialLeavePdf({
       doc.setFillColor(241, 245, 249);
       doc.rect(qrBoxX, qrBoxY, qrSize, qrSize, 'FD');
       doc.setFont('courier', 'bold');
-      doc.setFontSize(6.5);
+      doc.setFontSize(6);
       doc.setTextColor(15, 23, 42);
-      doc.text('UPNVJ-AUTH', qrBoxX + 2, qrBoxY + 8);
-      doc.text(docToken, qrBoxX + 2, qrBoxY + 14);
-      doc.text('VERIFIED', qrBoxX + 2, qrBoxY + 20);
+      doc.text('UPNVJ', qrBoxX + 1.5, qrBoxY + 6);
+      doc.text(docToken, qrBoxX + 1.5, qrBoxY + 11);
+      doc.text('AUTH', qrBoxX + 1.5, qrBoxY + 15);
     }
   } catch (_) {
     doc.rect(qrBoxX, qrBoxY, qrSize, qrSize);
   }
 
+  doc.setFont('times', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(11, 35, 65);
+  doc.text('Validasi Sistem Informasi Presensi SIAKAD UPNVJ', 42, footerBoxY + 6.5);
+
   doc.setFont('times', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Pindai QR Code untuk verifikasi', 46, y + 10);
-  doc.text('keaslian dokumen pada SIAKAD UPNVJ.', 46, y + 14);
-  doc.text(`ID Dokumen: ${docToken}`, 46, y + 19);
-  doc.text(`Diverifikasi oleh: ${adminUser.nama || 'Pengelola Akademik'}`, 46, y + 24);
-
-  const rightX = 148;
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Jakarta, ${tanggalKeputusan}`, rightX, y, { align: 'center' });
-
-  doc.setFont('times', 'bold');
-  doc.text(`Dekan ${dekanInfo.fakultasName},`, rightX, y + 5, { align: 'center' });
-
-  drawOfficialUniversityStamp(doc, {
-    cx: rightX - 16,
-    cy: y + 22,
-    radius: 17,
-    status: decision,
-    fakultasCode: dekanInfo.fakultasCode,
-    tanggalStr: String(new Date().getFullYear()),
-    docToken
-  });
-
-  const dekanY = y + 36;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(11, 35, 65);
-  doc.text(dekanInfo.nama, rightX, dekanY, { align: 'center' });
-
-  doc.setLineWidth(0.3);
-  doc.setDrawColor(11, 35, 65);
-  const nameWidth = doc.getTextWidth(dekanInfo.nama);
-  doc.line(rightX - (nameWidth / 2), dekanY + 1, rightX + (nameWidth / 2), dekanY + 1);
-
-  doc.setFont('times', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(51, 65, 85);
-  doc.text(`NIP. ${dekanInfo.nip}`, rightX, dekanY + 5.5, { align: 'center' });
-
-  // 9. FOOTER
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.2);
-  doc.line(16, 282, 194, 282);
+  doc.text(`ID Dokumen Digital: ${docToken} | Verifikasi Otomatis melalui Portal Presensi UPNVJ`, 42, footerBoxY + 11);
+  doc.text(`Diverifikasi oleh: ${adminUser.nama || 'Pengelola Akademik'} (${adminUser.role || 'Admin'})`, 42, footerBoxY + 15);
+  doc.text('Dokumen ini sah dan diakui sebagai bukti izin/dispensasi resmi institusi.', 42, footerBoxY + 19);
 
   doc.setFont('times', 'italic');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(
-    'Dokumen ini dicetak otomatis dan disahkan secara digital oleh Sistem Presensi UPNVJ. Tanda tangan dan stempel sah diakui oleh universitas.',
-    16,
-    286
-  );
-  doc.text('Halaman 1 dari 1 (A4)', 194, 286, { align: 'right' });
+  doc.text('Dicetak melalui Sistem Presensi Mahasiswa UPN "Veteran" Jakarta | Halaman 1 dari 1 (A4)', 105, 282, { align: 'center' });
 
   const pdfDataUrl = doc.output('datauristring');
   const pdfBlob = doc.output('blob');
