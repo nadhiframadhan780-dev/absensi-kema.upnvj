@@ -53,7 +53,12 @@ import {
   getFileCategory,
   formatLeaveStatusBadge,
   ALLOWED_LEAVE_EXTENSIONS,
-  MAX_LEAVE_FILE_SIZE_BYTES
+  MAX_LEAVE_FILE_SIZE_BYTES,
+  parseVerificationParams,
+  buildLetterVerificationUrl,
+  computeLetterChecksum,
+  verifyOfficialLetterRecord,
+  generateLetterSecurityToken
 } from './logic.js';
 
 import {
@@ -333,8 +338,12 @@ function handleNavigation(hash) {
   const cleanHash = hash.split('?')[0] || '#/';
   state.currentRoute = cleanHash;
 
-  // Jika sudah login dan profil sudah 100% lengkap, jika membuka landing, prodi, atau login, langsung arahkan ke Dashboard (Beranda)
-  if (state.currentUser && isProfileComplete()) {
+  // Rute Verifikasi Surat (#/verifikasi-surat dan #/verifikasi) adalah rute publik
+  // yang dapat diakses oleh siapa saja (Dosen, Mahasiswa, Penguji) tanpa perlu login
+  if (['#/verifikasi-surat', '#/verifikasi'].includes(cleanHash)) {
+    // Biarkan akses verifikasi publik langsung dibuka
+  } else if (state.currentUser && isProfileComplete()) {
+    // Jika sudah login dan profil sudah 100% lengkap, jika membuka landing, prodi, atau login, langsung arahkan ke Dashboard (Beranda)
     if (['#/', '', '#/login', '#/prodi'].includes(cleanHash)) {
       navigateTo('#/beranda');
       return;
@@ -361,6 +370,10 @@ function handleNavigation(hash) {
   if (cleanHash !== '#/absensi') {
     if (state.isScanning) stopCameraScanner();
     if (typeof stopDynamicQrRotation === 'function') stopDynamicQrRotation();
+  }
+
+  if (cleanHash !== '#/verifikasi-surat' && cleanHash !== '#/verifikasi') {
+    if (typeof stopVerifyCameraScanner === 'function') stopVerifyCameraScanner();
   }
 
   updateActiveNav(cleanHash);
@@ -397,6 +410,8 @@ function renderCurrentView() {
     '#/beranda': 'view-beranda',
     '#/absensi': 'view-absensi',
     '#/pengajuan': 'view-pengajuan',
+    '#/verifikasi-surat': 'view-verifikasi',
+    '#/verifikasi': 'view-verifikasi',
     '#/riwayat': 'view-riwayat',
     '#/profil': 'view-profil'
   };
@@ -430,6 +445,10 @@ function renderCurrentView() {
       break;
     case '#/pengajuan':
       renderPengajuanView();
+      break;
+    case '#/verifikasi-surat':
+    case '#/verifikasi':
+      renderVerifikasiView();
       break;
     case '#/riwayat':
       renderRiwayatView();
@@ -2927,6 +2946,10 @@ function openStudentLeaveModal(leaveId) {
             <i data-lucide="printer" style="width: 14px; height: 14px;"></i>
             <span>Cetak (Print A4)</span>
           </button>
+          <a href="#/verifikasi-surat?id=${encodeURIComponent(item.id)}&token=${encodeURIComponent((item.id || '').substring(0,8).toUpperCase())}&nim=${encodeURIComponent(item.nim || '')}" target="_blank" style="padding: 10px 16px; border-radius: 10px; background: #e0f2fe; border: 1px solid #7dd3fc; color: #0369a1; font-weight: 700; font-size: 12.5px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+            <span>Cek Halaman Verifikasi QR Dosen</span>
+          </a>
         </div>
       </div>
     `;
@@ -3229,4 +3252,666 @@ function formatWibTime(isoString) {
     return isoString;
   }
 }
+
+/**
+ * =========================================================================
+ * CONTROLLER: PORTAL VERIFIKASI KEABSAHAN SURAT RESMI (UNTUK DOSEN & MAHASISWA)
+ * =========================================================================
+ */
+let verifyHtml5QrCode = null;
+let isVerifyCameraRunning = false;
+
+function stopVerifyCameraScanner() {
+  if (verifyHtml5QrCode && isVerifyCameraRunning) {
+    try {
+      verifyHtml5QrCode.stop().then(() => {
+        isVerifyCameraRunning = false;
+        const box = document.getElementById('verify-camera-box');
+        if (box) box.classList.add('hidden');
+        const btnText = document.getElementById('btn-toggle-verify-camera-text');
+        if (btnText) btnText.textContent = 'Buka Pemindai Kamera (Scan QR)';
+      }).catch(err => {
+        console.warn('Gagal stop kamera verifikasi:', err);
+        isVerifyCameraRunning = false;
+      });
+    } catch (e) {
+      isVerifyCameraRunning = false;
+    }
+  }
+}
+
+async function toggleVerifyCameraScanner() {
+  const box = document.getElementById('verify-camera-box');
+  const btnText = document.getElementById('btn-toggle-verify-camera-text');
+
+  if (isVerifyCameraRunning) {
+    stopVerifyCameraScanner();
+    return;
+  }
+
+  if (!window.Html5Qrcode) {
+    showToast('error', 'Scanner Error', 'Pustaka pemindai kamera belum siap.');
+    return;
+  }
+
+  if (box) box.classList.remove('hidden');
+  if (btnText) btnText.textContent = 'Tutup Pemindai Kamera';
+
+  try {
+    if (!verifyHtml5QrCode) {
+      verifyHtml5QrCode = new window.Html5Qrcode('verify-camera-viewport');
+    }
+
+    const devices = await window.Html5Qrcode.getCameras();
+    if (!devices || devices.length === 0) {
+      showToast('warning', 'Kamera', 'Tidak ada perangkat kamera yang terdeteksi.');
+      if (box) box.classList.add('hidden');
+      if (btnText) btnText.textContent = 'Buka Pemindai Kamera (Scan QR)';
+      return;
+    }
+
+    const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang'));
+    const cameraId = backCam ? backCam.id : devices[0].id;
+
+    await verifyHtml5QrCode.start(
+      cameraId,
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        // QR Code berhasil dipindai!
+        stopVerifyCameraScanner();
+        showToast('success', 'QR Code Terdeteksi!', 'Memeriksa keabsahan surat keputusan...');
+
+        // Ekstrak parameter dari teks QR (baik berupa URL utuh maupun token langsung)
+        const params = parseVerificationParams(decodedText);
+        if (!params.id && !params.token && decodedText) {
+          params.queryText = decodedText.trim();
+        }
+
+        const inputToken = document.getElementById('input-verify-token');
+        if (inputToken) inputToken.value = params.token || params.id || decodedText;
+
+        performLetterVerification(params);
+      },
+      () => {
+        // scan frame failure (ignored)
+      }
+    );
+
+    isVerifyCameraRunning = true;
+  } catch (err) {
+    console.error('Gagal menyalakan kamera verifikasi:', err);
+    showToast('error', 'Izin Kamera', 'Gagal mengakses kamera. Pastikan Anda mengizinkan akses kamera.');
+    if (box) box.classList.add('hidden');
+    if (btnText) btnText.textContent = 'Buka Pemindai Kamera (Scan QR)';
+  }
+}
+
+/**
+ * Inisialisasi Tampilan Verifikasi Surat
+ */
+async function renderVerifikasiView() {
+  const fullHash = window.location.hash || '';
+  const fullSearch = window.location.search || '';
+  const params = parseVerificationParams(fullHash || fullSearch);
+
+  const formSearch = document.getElementById('form-search-verify');
+  const inputToken = document.getElementById('input-verify-token');
+  const btnToggleCamera = document.getElementById('btn-toggle-verify-camera');
+  const btnStopCamera = document.getElementById('btn-stop-verify-camera');
+  const btnReset = document.getElementById('btn-reset-verify');
+
+  if (formSearch) {
+    formSearch.onsubmit = (e) => {
+      e.preventDefault();
+      const val = inputToken ? inputToken.value.trim() : '';
+      if (!val) {
+        showToast('warning', 'Pencarian', 'Ketikkan ID Dokumen atau Token Digital.');
+        return;
+      }
+      stopVerifyCameraScanner();
+      performLetterVerification({ queryText: val });
+    };
+  }
+
+  if (btnToggleCamera) {
+    btnToggleCamera.onclick = () => toggleVerifyCameraScanner();
+  }
+
+  if (btnStopCamera) {
+    btnStopCamera.onclick = () => stopVerifyCameraScanner();
+  }
+
+  if (btnReset) {
+    btnReset.onclick = (e) => {
+      e.preventDefault();
+      if (inputToken) inputToken.value = '';
+      const resultContainer = document.getElementById('verify-result-container');
+      const errorContainer = document.getElementById('verify-error-state');
+      if (resultContainer) {
+        resultContainer.innerHTML = '';
+        resultContainer.classList.add('hidden');
+      }
+      if (errorContainer) errorContainer.classList.add('hidden');
+      renderInitialVerifyGuide();
+    };
+  }
+
+  // Jika URL memiliki parameter (misal scan QR dari handphone/kamera eksternal)
+  if (params.id || params.token || params.nim) {
+    if (inputToken) {
+      inputToken.value = params.token || params.id;
+    }
+    await performLetterVerification(params);
+  } else {
+    renderInitialVerifyGuide();
+  }
+
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+/**
+ * Tampilkan Panduan Awal Sebelum Melakukan Verifikasi
+ */
+function renderInitialVerifyGuide() {
+  const resultContainer = document.getElementById('verify-result-container');
+  const errorContainer = document.getElementById('verify-error-state');
+  if (errorContainer) errorContainer.classList.add('hidden');
+  if (!resultContainer) return;
+
+  resultContainer.classList.remove('hidden');
+  resultContainer.innerHTML = `
+    <div class="card-portal" style="padding: 32px 24px; text-align: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 20px;">
+      <div style="width: 68px; height: 68px; border-radius: 20px; background: #f0fdf4; color: #16a34a; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; border: 1px solid #bbf7d0;">
+        <i data-lucide="qr-code" style="width: 36px; height: 36px;"></i>
+      </div>
+      <h3 style="font-size: 19px; font-weight: 800; color: #0b2341; margin-bottom: 6px;">
+        Verifikasi Surat Keputusan Mahasiswa
+      </h3>
+      <p style="font-size: 13.5px; color: #64748b; max-width: 580px; margin: 0 auto 24px; line-height: 1.6;">
+        Bapak/Ibu Dosen atau Pengelola Akademik dapat memindai <strong>QR Code</strong> di pojok kiri bawah lembar Surat Keputusan resmi yang diserahkan oleh mahasiswa, atau mengetikkan <strong>Token Digital</strong> pada kotak pencarian di atas.
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; text-align: left; max-width: 720px; margin: 0 auto;">
+        <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #0b2341; margin-bottom: 4px;">
+            <i data-lucide="shield-check" style="width: 16px; height: 16px; color: #059669;"></i>
+            <span>Anti-Duplikat & Anti-Jiplak</span>
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin: 0; line-height: 1.5;">
+            Dilengkapi sidik jari kriptografis digital dan nomor naskah dinas resmi institusi UPNVJ yang mengunci identitas pemohon.
+          </p>
+        </div>
+
+        <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #0b2341; margin-bottom: 4px;">
+            <i data-lucide="check-circle-2" style="width: 16px; height: 16px; color: #2563eb;"></i>
+            <span>Pengesahan Dekan Otentik</span>
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin: 0; line-height: 1.5;">
+            Menampilkan data Dekan Fakultas bersangkutan, tanda tangan, cap dinas resmi, dan catatan persetujuan akademik.
+          </p>
+        </div>
+
+        <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #0b2341; margin-bottom: 4px;">
+            <i data-lucide="user-check" style="width: 16px; height: 16px; color: #d97706;"></i>
+            <span>Data Dosen & Mata Kuliah</span>
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin: 0; line-height: 1.5;">
+            Memvalidasi kecocokan nama dosen pengampu dan mata kuliah yang diisi oleh pemohon sebelum surat disahkan.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Eksekusi Pengecekan Dokumen Surat Resmi
+ */
+async function performLetterVerification(params = {}) {
+  const loadingEl = document.getElementById('verify-loading-state');
+  const resultContainer = document.getElementById('verify-result-container');
+  const errorContainer = document.getElementById('verify-error-state');
+
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (resultContainer) {
+    resultContainer.classList.add('hidden');
+    resultContainer.innerHTML = '';
+  }
+  if (errorContainer) errorContainer.classList.add('hidden');
+
+  try {
+    let letterDoc = null;
+    const rawQuery = (params.queryText || '').trim();
+    let targetId = params.id || '';
+    let targetToken = params.token || '';
+    let targetNim = params.nim || '';
+
+    if (rawQuery) {
+      if (rawQuery.startsWith('UPN-')) {
+        targetToken = rawQuery.replace('UPN-', '').trim();
+      } else if (/^\d{10}$/.test(rawQuery)) {
+        targetNim = rawQuery;
+      } else {
+        targetId = rawQuery;
+      }
+    }
+
+    // 1. Coba ambil langsung berdasarkan Document ID Firestore
+    if (targetId) {
+      try {
+        const snap = await getDoc(doc(db, 'leaveRequests', targetId));
+        if (snap.exists()) {
+          letterDoc = { id: snap.id, ...snap.data() };
+        }
+      } catch (docErr) {
+        console.warn('Gagal fetch doc ID Firestore:', docErr);
+      }
+    }
+
+    // 2. Jika belum ditemukan, lakukan query Firestore
+    if (!letterDoc) {
+      try {
+        let q;
+        if (targetNim) {
+          q = query(collection(db, 'leaveRequests'), where('nim', '==', targetNim));
+        } else {
+          q = query(collection(db, 'leaveRequests'));
+        }
+
+        const querySnap = await getDocs(q);
+        querySnap.forEach(d => {
+          if (!letterDoc) {
+            const data = d.data();
+            const docId = d.id;
+            const token = docId.substring(0, 8).toUpperCase();
+
+            const isMatchId = targetId && docId.toLowerCase() === targetId.toLowerCase();
+            const isMatchToken = targetToken && token === targetToken.toUpperCase();
+            const isMatchSurat = targetToken && data.suratNomor && data.suratNomor.toUpperCase().includes(targetToken.toUpperCase());
+            const isMatchQuery = rawQuery && (
+              docId.toLowerCase().includes(rawQuery.toLowerCase()) || 
+              (data.suratNomor && data.suratNomor.toLowerCase().includes(rawQuery.toLowerCase())) ||
+              (data.nim && data.nim === rawQuery)
+            );
+
+            if (isMatchId || isMatchToken || isMatchSurat || isMatchQuery) {
+              letterDoc = { id: docId, ...data };
+            }
+          }
+        });
+      } catch (qErr) {
+        console.warn('Gagal query dokumen:', qErr);
+      }
+    }
+
+    // 3. Fallback pencarian di memori lokal jika offline / cache
+    if (!letterDoc && state.leaveRequests && state.leaveRequests.length > 0) {
+      letterDoc = state.leaveRequests.find(l => {
+        const token = (l.id || '').substring(0, 8).toUpperCase();
+        return (
+          (targetId && l.id === targetId) ||
+          (targetToken && token === targetToken.toUpperCase()) ||
+          (targetToken && l.suratNomor && l.suratNomor.includes(targetToken)) ||
+          (targetNim && l.nim === targetNim) ||
+          (rawQuery && (l.id === rawQuery || l.nim === rawQuery || (l.suratNomor && l.suratNomor.includes(rawQuery))))
+        );
+      });
+    }
+
+    // 4. Validasi Integritas Dokumen & Anti-Jiplak via Pure Logic
+    const verification = verifyOfficialLetterRecord(letterDoc, params);
+
+    if (loadingEl) loadingEl.classList.add('hidden');
+
+    if (!verification.isValid && (!letterDoc || verification.code === 'NOT_FOUND' || verification.code === 'NIM_MISMATCH')) {
+      if (errorContainer) {
+        errorContainer.classList.remove('hidden');
+        const errTitle = document.getElementById('verify-error-title');
+        const errDesc = document.getElementById('verify-error-desc');
+        if (errTitle) errTitle.textContent = verification.statusLabel;
+        if (errDesc) errDesc.textContent = verification.message;
+      }
+      return;
+    }
+
+    // Tampilkan lembar hasil verifikasi resmi
+    renderVerifiedLetterResult(verification, letterDoc);
+
+  } catch (err) {
+    console.error('Kesalahan verifikasi surat:', err);
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (errorContainer) {
+      errorContainer.classList.remove('hidden');
+      const errTitle = document.getElementById('verify-error-title');
+      const errDesc = document.getElementById('verify-error-desc');
+      if (errTitle) errTitle.textContent = 'Gagal Memverifikasi Dokumen';
+      if (errDesc) errDesc.textContent = err.message || 'Terjadi gangguan saat memvalidasi data dokumen.';
+    }
+  }
+}
+
+/**
+ * Render Hasil Verifikasi Dokumen Resmi
+ */
+function renderVerifiedLetterResult(verification, letterDoc) {
+  const resultContainer = document.getElementById('verify-result-container');
+  if (!resultContainer) return;
+
+  const data = verification.data;
+  const isApproved = verification.isApproved;
+  const isRejected = verification.isRejected;
+
+  const badgeBg = isApproved ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';
+  const badgeIcon = isApproved ? 'shield-check' : 'shield-alert';
+  const sealColor = isApproved ? '#059669' : '#dc2626';
+
+  const verifyDateStr = formatWibTime(data.verifiedAt);
+  const decisionDateStr = formatIndonesianDateDisplay(data.approval.tanggalKeputusan);
+
+  resultContainer.classList.remove('hidden');
+  resultContainer.innerHTML = `
+    <!-- 1. KARTU STATUS KEABSAHAN TERTINGGI (OFFICIAL AUTHENTICITY BADGE) -->
+    <div class="card-portal" style="padding: 28px; background: ${badgeBg}; color: #ffffff; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(5, 150, 105, 0.35); position: relative; overflow: hidden;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="width: 58px; height: 58px; border-radius: 16px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; border: 2px solid rgba(255, 255, 255, 0.4); flex-shrink: 0;">
+            <i data-lucide="${badgeIcon}" style="width: 32px; height: 32px; color: #ffffff;"></i>
+          </div>
+          <div>
+            <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.9);">
+              HASIL VALIDASI SISTEM RESMI UPNVJ
+            </div>
+            <h2 style="font-size: 21px; font-weight: 900; color: #ffffff; margin: 2px 0;">
+              ${escapeHtml(verification.statusLabel)}
+            </h2>
+            <div style="font-size: 13px; color: rgba(255, 255, 255, 0.9); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span>No. Naskah Dinas: <strong style="font-family: 'JetBrains Mono', monospace;">${escapeHtml(data.approval.nomorSurat)}</strong></span>
+              <span>·</span>
+              <span>Disahkan: ${escapeHtml(decisionDateStr)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 8px 16px; border-radius: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); font-size: 12px; font-weight: 700; text-align: right;">
+          <div style="color: rgba(255, 255, 255, 0.7); font-size: 10.5px;">Waktu Verifikasi Sistem:</div>
+          <div>${escapeHtml(verifyDateStr)}</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 13px; color: rgba(255, 255, 255, 0.95); line-height: 1.5;">
+        ${escapeHtml(verification.message)}
+      </div>
+    </div>
+
+    <!-- 2. GRID INFORMASI: DATA PEMOHON & DATA DOSEN BERSANGKUTAN -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+      
+      <!-- DATA PEMOHON (MAHASISWA) -->
+      <div class="card-portal" style="padding: 24px; background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1.5px solid #f1f5f9; margin-bottom: 16px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: #e0f2fe; color: #0369a1; display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="user" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 15px; font-weight: 800; color: #0b2341; margin: 0;">Identitas Mahasiswa Pemohon</h3>
+            <span style="font-size: 11.5px; color: #64748b;">Terdaftar Aktif di Pangkalan Data UPNVJ</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Nama Lengkap</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0b2341; margin-top: 2px;">
+              ${escapeHtml(data.applicant.nama)}
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">NIM</div>
+              <div style="font-size: 13.5px; font-weight: 800; color: #0369a1; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                ${escapeHtml(data.applicant.nim)}
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Status Mahasiswa</div>
+              <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; background: #dcfce7; color: #15803d; font-size: 11.5px; font-weight: 700; margin-top: 2px;">
+                Aktif Terverifikasi
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Program Studi & Fakultas</div>
+            <div style="font-weight: 700; color: #334155; margin-top: 2px;">
+              ${escapeHtml(data.applicant.prodi)}
+            </div>
+            <div style="font-size: 12px; color: #64748b;">
+              ${escapeHtml(data.applicant.fakultas)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA DOSEN BERSANGKUTAN & MATA KULIAH (YANG DIISI PEMOHON SEBELUMNYA) -->
+      <div class="card-portal" style="padding: 24px; background: #ffffff; border-radius: 18px; border: 1.5px solid #bbf7d0; box-shadow: 0 4px 15px -2px rgba(16, 185, 129, 0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 14px; border-bottom: 1.5px solid #f0fdf4; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center;">
+              <i data-lucide="graduation-cap" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <h3 style="font-size: 15px; font-weight: 800; color: #14532d; margin: 0;">Data Dosen & Mata Kuliah</h3>
+              <span style="font-size: 11.5px; color: #166534;">Diisi langsung oleh pemohon saat pengajuan</span>
+            </div>
+          </div>
+          <span style="padding: 3px 10px; border-radius: 9999px; background: #15803d; color: #ffffff; font-size: 11px; font-weight: 800;">
+            Surat ${escapeHtml(data.courseAndLecturer.jenis)}
+          </span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Dosen Pengampu / Penanggung Jawab:</div>
+            <div style="font-size: 14.5px; font-weight: 800; color: #0b2341; margin-top: 2px;">
+              ${escapeHtml(data.courseAndLecturer.dosen || 'Dosen Penanggung Jawab Mata Kuliah')}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Mata Kuliah Terkait:</div>
+            <div style="font-size: 14px; font-weight: 800; color: #0284c7; margin-top: 2px;">
+              ${escapeHtml(data.courseAndLecturer.mataKuliah || 'Seluruh Perkuliahan Terjadwal')}
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Periode Berlaku:</div>
+              <div style="font-weight: 700; color: #334155; margin-top: 2px;">
+                ${escapeHtml(data.courseAndLecturer.tanggalMulai)} s/d ${escapeHtml(data.courseAndLecturer.tanggalSelesai)}
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Total Durasi:</div>
+              <div style="font-weight: 800; color: #15803d; margin-top: 2px;">
+                ${escapeHtml(String(data.courseAndLecturer.durasiHari))} Hari Perkuliahan
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Alasan / Keterangan Pemohon:</div>
+            <div style="padding: 10px 12px; background: #f0fdf4; border-radius: 10px; border: 1px solid #bbf7d0; color: #14532d; font-style: italic; margin-top: 4px; line-height: 1.5;">
+              "${escapeHtml(data.courseAndLecturer.alasan)}"
+            </div>
+          </div>
+
+          ${data.courseAndLecturer.lampiranUrl ? `
+            <div style="margin-top: 4px;">
+              <button type="button" id="btn-verify-view-attachment" style="width: 100%; padding: 9px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid #cbd5e1; color: #0b2341; font-weight: 700; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;">
+                <i data-lucide="paperclip" style="width: 14px; height: 14px; color: #0284c7;"></i>
+                <span>Buka Berkas Bukti Lampiran Pemohon (${escapeHtml(data.courseAndLecturer.lampiranKategori)})</span>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 3. DATA PENGESAHAN DEKANAT & CAP STEMPEL DINAS RESMI -->
+    <div class="card-portal" style="padding: 24px; background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+        
+        <div style="flex: 1; min-width: 280px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 6px;">
+            <i data-lucide="award" style="width: 16px; height: 16px;"></i>
+            <span>Pengesahan Pejabat Dekanat Berwenang</span>
+          </div>
+          <h3 style="font-size: 17px; font-weight: 900; color: #0b2341; margin: 0;">
+            ${escapeHtml(data.approval.dekanNama)}
+          </h3>
+          <div style="font-size: 13px; color: #475569; margin-top: 2px;">
+            Dekan ${escapeHtml(data.approval.dekanFakultas)}
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #64748b; margin-top: 4px;">
+            NIP. ${escapeHtml(data.approval.dekanNip)}
+          </div>
+
+          <div style="margin-top: 14px; font-size: 12.5px; color: #475569; line-height: 1.5;">
+            Diverifikasi & disahkan oleh: <strong>${escapeHtml(data.approval.diprosesOleh)}</strong>.
+            Catatan: ${escapeHtml(data.approval.catatanAdmin)}
+          </div>
+        </div>
+
+        <!-- Cap Dinas Resmi UI Representation -->
+        <div style="text-align: center; padding: 14px 20px; border: 2.5px double ${sealColor}; border-radius: 50%; width: 140px; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: rotate(-5deg); box-shadow: 0 4px 12px rgba(0,0,0,0.06); flex-shrink: 0; margin: 0 auto;">
+          <div style="font-size: 8.5px; font-weight: 900; color: ${sealColor}; letter-spacing: 0.05em;">UPN "VETERAN" JAKARTA</div>
+          <div style="font-size: 13px; font-weight: 900; color: ${sealColor}; margin: 4px 0; text-transform: uppercase;">
+            ${escapeHtml(data.approval.capWarna === 'HIJAU' ? 'DISETUJUI' : 'DITOLAK')}
+          </div>
+          <div style="font-size: 8px; font-weight: 800; color: ${sealColor};">DEKANAT FAKULTAS</div>
+          <div style="font-size: 7.5px; font-family: monospace; color: ${sealColor}; margin-top: 2px;">${escapeHtml(data.token)}</div>
+        </div>
+
+      </div>
+
+      <!-- Tombol Aksi untuk Dosen & Pencetakan -->
+      <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid #f1f5f9; display: flex; gap: 10px; flex-wrap: wrap;">
+        <button type="button" id="btn-verify-download-pdf" class="btn-primary-block" style="flex: 1; min-width: 200px; padding: 11px 20px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+          <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+          <span>Cetak / Unduh Salinan Surat Resmi (A4 PDF)</span>
+        </button>
+        <button type="button" id="btn-verify-copy-link" style="padding: 11px 18px; border-radius: 12px; background: #f8fafc; color: #0b2341; border: 1px solid #cbd5e1; font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+          <i data-lucide="copy" style="width: 15px; height: 15px;"></i>
+          <span>Salin Tautan Verifikasi</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. PILAR KEAMANAN ANTI-DUPLIKASI & LANDASAN HUKUM PASAL 263 KUHP -->
+    <div style="padding: 16px 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; font-size: 12px; color: #64748b; line-height: 1.6;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-weight: 800; color: #0b2341;">
+          <i data-lucide="shield" style="width: 14px; height: 14px; color: #059669;"></i>
+          <span>Integritas Kriptografi Anti-Jiplak UPNVJ:</span>
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 8px; border-radius: 6px; border: 1px solid #a7f3d0;">
+          CHECKSUM: ${escapeHtml(data.checksum)}
+        </div>
+      </div>
+      <div>
+        Dokumen ini diterbitkan secara sah dan dilindungi oleh sistem keamanan Universitas Pembangunan Nasional "Veteran" Jakarta. Segala bentuk pemalsuan, duplikasi, atau manipulasi data surat keputusan ini merupakan tindak pidana sesuai <strong>Pasal 263 Kitab Undang-Undang Hukum Pidana (KUHP)</strong> dengan ancaman pidana kurungan maksimal 6 tahun.
+      </div>
+    </div>
+  `;
+
+  // Pasang listener tombol aksi
+  const btnDownloadPdf = document.getElementById('btn-verify-download-pdf');
+  if (btnDownloadPdf) {
+    btnDownloadPdf.onclick = async () => {
+      try {
+        setButtonLoading(btnDownloadPdf, true, 'Menyiapkan Dokumen PDF...');
+        if (letterDoc.suratKeputusanPdf) {
+          downloadPdfFromDataUrl(
+            letterDoc.suratKeputusanPdf,
+            `Surat_Keputusan_Resmi_UPNVJ_${letterDoc.nim || 'MHS'}_${data.token}.pdf`
+          );
+        } else {
+          // Generate PDF resmi jika belum tersimpan
+          const generated = await generateOfficialLeavePdf({
+            leaveData: letterDoc,
+            decision: isApproved ? 'Disetujui' : 'Ditolak',
+            adminUser: { nama: data.approval.diprosesOleh, role: 'Pengelola Akademik' }
+          });
+          downloadPdfFromDataUrl(
+            generated.pdfDataUrl,
+            `Surat_Keputusan_Resmi_UPNVJ_${letterDoc.nim || 'MHS'}_${data.token}.pdf`
+          );
+        }
+        showToast('success', 'Dokumen Diunduh', 'Salinan Surat Keputusan Resmi berhasil diunduh.');
+      } catch (err) {
+        console.error('Gagal unduh PDF:', err);
+        showToast('error', 'Gagal Unduh', 'Tidak dapat menghasilkan berkas PDF surat keputusan.');
+      } finally {
+        setButtonLoading(btnDownloadPdf, false);
+      }
+    };
+  }
+
+  const btnCopyLink = document.getElementById('btn-verify-copy-link');
+  if (btnCopyLink) {
+    btnCopyLink.onclick = () => {
+      const url = window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          showToast('success', 'Tautan Disalin', 'Tautan verifikasi resmi berhasil disalin ke clipboard.');
+        }).catch(() => {
+          showToast('info', 'Tautan Verifikasi', url);
+        });
+      } else {
+        showToast('info', 'Tautan Verifikasi', url);
+      }
+    };
+  }
+
+  const btnViewAttach = document.getElementById('btn-verify-view-attachment');
+  if (btnViewAttach && data.courseAndLecturer.lampiranUrl) {
+    btnViewAttach.onclick = () => {
+      openDocumentPreviewSafely(
+        data.courseAndLecturer.lampiranUrl,
+        data.courseAndLecturer.lampiranNama,
+        data.courseAndLecturer.lampiranKategori
+      );
+    };
+  }
+
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+/**
+ * Format tanggal Indonesia ramah tampilan: "24 Mei 2026"
+ */
+function formatIndonesianDateDisplay(dateInput) {
+  if (!dateInput) return '-';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return dateInput;
+    return d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return dateInput;
+  }
+}
+
 

@@ -572,9 +572,20 @@ export async function generateOfficialLeavePdf({
 
   try {
     const tempDiv = document.createElement('div');
+    const currentOrigin = (typeof window !== 'undefined' && window.location && window.location.origin)
+      ? window.location.origin
+      : 'https://absensi.upnvj.ac.id';
+    let pathPrefix = (typeof window !== 'undefined' && window.location && window.location.pathname)
+      ? window.location.pathname
+      : '/';
+    pathPrefix = pathPrefix.replace(/\/admin(\/.*)?$/, '/');
+    if (!pathPrefix.endsWith('/')) pathPrefix += '/';
+
+    const verifyUrl = `${currentOrigin}${pathPrefix}#/verifikasi-surat?id=${encodeURIComponent(leaveData.id || '')}&token=${encodeURIComponent(docToken)}&nim=${encodeURIComponent(leaveData.nim || '')}`;
+
     if (window.QRCode) {
       new window.QRCode(tempDiv, {
-        text: `https://absensi.upnvj.ac.id/#/verifikasi?token=${docToken}&nim=${leaveData.nim}`,
+        text: verifyUrl,
         width: 100,
         height: 100,
         correctLevel: 2

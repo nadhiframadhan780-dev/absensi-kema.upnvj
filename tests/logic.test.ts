@@ -461,6 +461,143 @@ test('Surat Keputusan Resmi: Posisi Stempel di Area Dekan (cx=148) dan Tanda Tan
   assert.deepEqual(calledColor, [220, 38, 38], 'Stempel ditolak wajib berwarna MERAH');
 });
 
+test('Portal Verifikasi QR: Pembuatan URL Verifikasi & Parsing Parameter', async () => {
+  const { buildLetterVerificationUrl, parseVerificationParams } = await import('../js/logic.js');
+
+  const url = buildLetterVerificationUrl({
+    origin: 'https://ais-dev-preview.run.app',
+    pathname: '/admin/dashboard.html',
+    id: 'req_xyz789',
+    token: 'REQ_XYZ7',
+    nim: '2110511045'
+  });
+
+  assert.ok(url.includes('#/verifikasi-surat'), 'URL wajib mengarah ke route #/verifikasi-surat');
+  assert.ok(url.includes('id=req_xyz789'), 'URL wajib menyertakan parameter id');
+  assert.ok(url.includes('token=REQ_XYZ7'), 'URL wajib menyertakan token digital');
+  assert.ok(url.includes('nim=2110511045'), 'URL wajib menyertakan NIM');
+  assert.ok(!url.includes('/admin/'), 'URL wajib dibersihkan dari subfolder /admin');
+
+  // Parsing parameter dari hash string
+  const parsed1 = parseVerificationParams('#/verifikasi-surat?id=req_xyz789&token=REQ_XYZ7&nim=2110511045');
+  assert.equal(parsed1.id, 'req_xyz789');
+  assert.equal(parsed1.token, 'REQ_XYZ7');
+  assert.equal(parsed1.nim, '2110511045');
+
+  // Parsing parameter dari format pendek #/verifikasi?token=...
+  const parsed2 = parseVerificationParams('#/verifikasi?token=ABC12345&nim=2210511099');
+  assert.equal(parsed2.token, 'ABC12345');
+  assert.equal(parsed2.nim, '2210511099');
+});
+
+test('Anti-Jiplak & Anti-Duplikasi: Checksum Kriptografis Mendeteksi Manipulasi Data', async () => {
+  const { computeLetterChecksum } = await import('../js/logic.js');
+
+  const originalDoc = {
+    id: 'doc_upnvj_001',
+    nim: '2110511045',
+    mataKuliah: 'Rekayasa Perangkat Lunak',
+    dosen: 'Dr. Ir. Hendra Gunawan, M.Kom.',
+    tanggalMulai: '2026-05-10',
+    tanggalSelesai: '2026-05-12',
+    jenis: 'Sakit',
+    status: 'Disetujui',
+    dekanNip: '196803201994032001'
+  };
+
+  const originalChecksum = computeLetterChecksum(originalDoc);
+  assert.ok(originalChecksum.startsWith('UPNVJ-'), 'Checksum wajib berawalan UPNVJ-');
+
+  // Checksum deterministik: data sama menghasilkan checksum yang identik
+  const identicalChecksum = computeLetterChecksum({ ...originalDoc });
+  assert.equal(originalChecksum, identicalChecksum, 'Data identik wajib menghasilkan checksum yang sama');
+
+  // Jika ada pihak memanipulasi nama Dosen
+  const tamperedDosen = computeLetterChecksum({ ...originalDoc, dosen: 'Dosen Palsu' });
+  assert.notEqual(originalChecksum, tamperedDosen, 'Manipulasi Dosen wajib mengubah checksum');
+
+  // Jika ada pihak memanipulasi Mata Kuliah
+  const tamperedMatkul = computeLetterChecksum({ ...originalDoc, mataKuliah: 'Mata Kuliah Lain' });
+  assert.notEqual(originalChecksum, tamperedMatkul, 'Manipulasi Mata Kuliah wajib mengubah checksum');
+
+  // Jika ada pihak memanipulasi NIM atau Tanggal
+  const tamperedNim = computeLetterChecksum({ ...originalDoc, nim: '9999999999' });
+  assert.notEqual(originalChecksum, tamperedNim, 'Manipulasi NIM wajib mengubah checksum');
+});
+
+test('Validasi Surat Resmi: Menampilkan Data Pemohon dan Dosen Bersangkutan', async () => {
+  const { verifyOfficialLetterRecord } = await import('../js/logic.js');
+
+  const registeredDoc = {
+    id: 'req_8f91a0',
+    nim: '2110511045',
+    nama: 'Adinda Putri Maharani',
+    fakultas: 'Fakultas Ekonomi dan Bisnis',
+    prodi: 'S1 Manajemen',
+    dosen: 'Dr. Ir. Hendra Gunawan, M.Kom.',
+    mataKuliah: 'Manajemen Keuangan Lanjutan',
+    jenis: 'Dispensasi',
+    tanggalMulai: '2026-05-20',
+    tanggalSelesai: '2026-05-22',
+    alasan: 'Mewakili universitas dalam Kompetisi Bisnis Nasional 2026',
+    status: 'Disetujui',
+    suratNomor: 'B/142/UN61.1/FEB/KM.01.02/2026',
+    dekanNama: 'Dr. Jubaedah, S.E., M.M.',
+    dekanNip: '196803201994032001',
+    dekanFakultas: 'Fakultas Ekonomi dan Bisnis',
+    diprosesOleh: 'Admin Akademik FEB',
+    lampiran: 'data:application/pdf;base64,...',
+    lampiranNama: 'Surat_Tugas_Rektor_UPNVJ.pdf'
+  };
+
+  const result = verifyOfficialLetterRecord(registeredDoc, { id: 'req_8f91a0', nim: '2110511045' });
+
+  assert.equal(result.isValid, true, 'Surat disetujui wajib dinyatakan valid');
+  assert.equal(result.isApproved, true);
+  assert.equal(result.statusLabel, 'RESMI & DISETUJUI DEKAN');
+
+  // Verifikasi Data Pemohon
+  assert.equal(result.data.applicant.nama, 'Adinda Putri Maharani');
+  assert.equal(result.data.applicant.nim, '2110511045');
+  assert.equal(result.data.applicant.prodi, 'S1 Manajemen');
+
+  // Verifikasi Data Dosen Bersangkutan & Mata Kuliah (yang diisi pemohon)
+  assert.equal(result.data.courseAndLecturer.dosen, 'Dr. Ir. Hendra Gunawan, M.Kom.');
+  assert.equal(result.data.courseAndLecturer.mataKuliah, 'Manajemen Keuangan Lanjutan');
+  assert.equal(result.data.courseAndLecturer.jenis, 'Dispensasi');
+  assert.equal(result.data.courseAndLecturer.durasiHari, 3);
+  assert.ok(result.data.courseAndLecturer.alasan.includes('Kompetisi Bisnis'));
+
+  // Verifikasi Pengesahan Dekanat
+  assert.equal(result.data.approval.nomorSurat, 'B/142/UN61.1/FEB/KM.01.02/2026');
+  assert.equal(result.data.approval.dekanNama, 'Dr. Jubaedah, S.E., M.M.');
+  assert.equal(result.data.approval.dekanNip, '196803201994032001');
+  assert.equal(result.data.approval.capWarna, 'HIJAU');
+});
+
+test('Validasi Surat Resmi: Deteksi Dokumen Palsu atau NIM Tidak Cocok', async () => {
+  const { verifyOfficialLetterRecord } = await import('../js/logic.js');
+
+  // 1. Dokumen tidak ditemukan dalam basis data
+  const notFound = verifyOfficialLetterRecord(null, { id: 'fake_123' });
+  assert.equal(notFound.isValid, false);
+  assert.equal(notFound.code, 'NOT_FOUND');
+  assert.ok(notFound.message.includes('tidak terdaftar'));
+
+  // 2. Manipulasi NIM pada query string
+  const registered = {
+    id: 'req_001',
+    nim: '2110511045',
+    nama: 'Adinda',
+    status: 'Disetujui'
+  };
+  const mismatch = verifyOfficialLetterRecord(registered, { id: 'req_001', nim: '9999999999' });
+  assert.equal(mismatch.isValid, false);
+  assert.equal(mismatch.code, 'NIM_MISMATCH');
+  assert.ok(mismatch.message.includes('TIDAK SAH'));
+});
+
+
 
 
 

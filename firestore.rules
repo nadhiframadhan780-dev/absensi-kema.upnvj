@@ -101,9 +101,9 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || isAdmin();
     }
 
-    // 7. Pengajuan Izin & Sakit (leaveRequests)
+    // 7. Pengajuan Izin & Sakit (leaveRequests) - Publik dapat memverifikasi keaslian surat via QR code
     match /leaveRequests/{id} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: true;
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin(); // Hanya admin yang dapat menyetujui / menolak
       allow delete: if isSuperAdmin();

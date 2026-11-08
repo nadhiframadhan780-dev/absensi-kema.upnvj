@@ -54,6 +54,7 @@
           <a href="#/beranda" class="desktop-nav-btn"><i data-lucide="layout-dashboard" style="width: 15px; height: 15px;"></i><span>Beranda</span></a>
           <a href="#/absensi" class="desktop-nav-btn"><i data-lucide="qr-code" style="width: 15px; height: 15px;"></i><span>Absensi</span></a>
           <a href="#/pengajuan" class="desktop-nav-btn"><i data-lucide="file-text" style="width: 15px; height: 15px;"></i><span>Pengajuan Surat</span></a>
+          <a href="#/verifikasi-surat" class="desktop-nav-btn"><i data-lucide="shield-check" style="width: 15px; height: 15px; color: #059669;"></i><span>Verifikasi Surat</span></a>
           <a href="#/riwayat" class="desktop-nav-btn"><i data-lucide="history" style="width: 15px; height: 15px;"></i><span>Riwayat</span></a>
           <a href="#/profil" class="desktop-nav-btn"><i data-lucide="user-check" style="width: 15px; height: 15px;"></i><span>Profil</span></a>
         </nav>
@@ -85,7 +86,11 @@
           </div>
 
           <!-- Guest Action -->
-          <div id="nav-guest-section">
+          <div id="nav-guest-section" style="display: flex; align-items: center; gap: 8px;">
+            <a href="#/verifikasi-surat" class="desktop-nav-btn" style="color: #0b2341; background: #f1f5f9; padding: 7px 12px; border-radius: 10px; font-weight: 700; border: 1px solid #cbd5e1; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+              <i data-lucide="shield-check" style="width: 15px; height: 15px; color: #059669;"></i>
+              <span>Verifikasi Surat</span>
+            </a>
             <a href="#/login" class="btn-login-cta">
               <i data-lucide="log-in" style="width: 16px; height: 16px;"></i>
               <span>Masuk Portal</span>
@@ -1176,7 +1181,105 @@
       </section>
 
       <!-- ====================================================================
-           VIEW 8: 404 HALAMAN TIDAK DITEMUKAN
+           VIEW 8: PORTAL VERIFIKASI KEABSAHAN SURAT RESMI (SCAN QR CODE DOSEN)
+           ==================================================================== -->
+      <section id="view-verifikasi" class="app-view hidden">
+        <div class="view-main-container" style="max-width: 860px; margin: 0 auto; padding-bottom: 60px;">
+          
+          <!-- Banner Verifikasi Resmi UPNVJ -->
+          <div class="card-portal" style="padding: 28px; background: linear-gradient(135deg, #0b2341 0%, #173860 100%); color: #ffffff; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(11, 35, 65, 0.3); margin-bottom: 24px; position: relative; overflow: hidden;">
+            <div style="position: absolute; right: -20px; bottom: -20px; opacity: 0.08; pointer-events: none;">
+              <img src="assets/logo-upnvj.png" alt="" style="width: 220px; height: 220px;" />
+            </div>
+
+            <div style="position: relative; z-index: 2; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+              <div style="width: 64px; height: 64px; border-radius: 16px; background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; border: 1.5px solid rgba(255, 255, 255, 0.25); flex-shrink: 0;">
+                <img src="assets/logo-upnvj.png" alt="Logo UPNVJ" style="width: 44px; height: 44px; object-fit: contain;" />
+              </div>
+              <div style="flex: 1; min-width: 260px;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); color: #34d399; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;">
+                  <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+                  <span>Portal Validasi Keabsahan Naskah Dinas SIAKAD</span>
+                </div>
+                <h1 style="font-size: 22px; font-weight: 800; line-height: 1.3; color: #ffffff; margin: 0;">
+                  Verifikasi Surat Keputusan Dekan & Dispensasi Mahasiswa
+                </h1>
+                <p style="font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.5;">
+                  Sistem Informasi Presensi UPN "Veteran" Jakarta untuk memvalidasi keaslian surat izin/sakit/dispensasi secara real-time, anti-jiplak, dan anti-pemalsuan.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tool Pencarian / Scan QR Tambahan untuk Dosen -->
+          <div class="card-portal" style="padding: 20px 24px; background: #ffffff; border-radius: 18px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="search" style="width: 18px; height: 18px; color: #0b2341;"></i>
+                <span style="font-size: 14px; font-weight: 800; color: #0b2341;">Pencarian & Pemindai QR Dokumen</span>
+              </div>
+              <button id="btn-toggle-verify-camera" type="button" style="padding: 7px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #0b2341; background: #f1f5f9; border: 1px solid #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                <i data-lucide="camera" style="width: 15px; height: 15px; color: #059669;"></i>
+                <span id="btn-toggle-verify-camera-text">Buka Pemindai Kamera (Scan QR)</span>
+              </button>
+            </div>
+
+            <!-- Kamera Viewfinder Box (Togglable) -->
+            <div id="verify-camera-box" class="hidden" style="margin-bottom: 16px; padding: 16px; background: #0f172a; border-radius: 14px; text-align: center;">
+              <p style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">
+                Arahkan kamera ke QR Code yang tercetak di pojok kiri bawah Surat Keputusan Dekan:
+              </p>
+              <div id="verify-camera-viewport" style="max-width: 320px; height: 260px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000000; border: 2px solid #059669;"></div>
+              <button id="btn-stop-verify-camera" type="button" style="margin-top: 12px; padding: 6px 14px; background: #dc2626; color: #ffffff; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;">
+                Tutup Kamera
+              </button>
+            </div>
+
+            <!-- Manual Input Search Bar -->
+            <form id="form-search-verify" style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 240px; position: relative;">
+                <input id="input-verify-token" type="text" placeholder="Masukkan ID Dokumen atau Token Digital (contoh: UPN-8F91A... atau ID surat)" class="form-input" style="padding-left: 38px; font-family: 'JetBrains Mono', monospace; font-size: 13px;" />
+                <i data-lucide="key" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #94a3b8;"></i>
+              </div>
+              <button type="submit" id="btn-submit-verify" style="padding: 10px 22px; border-radius: 12px; background: #0b2341; color: #ffffff; font-size: 13px; font-weight: 800; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                <i data-lucide="check-circle" style="width: 16px; height: 16px; color: #34d399;"></i>
+                <span>Verifikasi Dokumen</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Pemuatan Status -->
+          <div id="verify-loading-state" class="hidden" style="text-align: center; padding: 48px 20px;">
+            <div class="spinner" style="width: 44px; height: 44px; margin: 0 auto 16px; border-width: 3.5px; border-top-color: #059669;"></div>
+            <h3 style="font-size: 16px; font-weight: 800; color: #0b2341;">Memeriksa Keabsahan Dokumen Digital...</h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Menghubungkan ke Pangkalan Data Resmi SIAKAD & Dekanat UPNVJ</p>
+          </div>
+
+          <!-- KONTENER UTAMA HASIL VERIFIKASI RESMI -->
+          <div id="verify-result-container" class="hidden" style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Dinamis dirender via JS -->
+          </div>
+
+          <!-- KONTENER ERROR / TIDAK VALID -->
+          <div id="verify-error-state" class="hidden" style="padding: 32px 24px; background: #fef2f2; border: 2px dashed #f87171; border-radius: 20px; text-align: center;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+              <i data-lucide="shield-alert" style="width: 32px; height: 32px;"></i>
+            </div>
+            <h3 id="verify-error-title" style="font-size: 18px; font-weight: 800; color: #991b1b;">Dokumen Tidak Ditemukan / Tidak Valid</h3>
+            <p id="verify-error-desc" style="font-size: 13px; color: #b91c1c; margin: 8px auto 20px; max-width: 540px; line-height: 1.6;">
+              Data QR Code atau token yang dipindai tidak terdaftar pada pangkalan data resmi UPN Veteran Jakarta. Waspada terhadap indikasi pemalsuan berkas kedinasan.
+            </p>
+            <a href="#/verifikasi-surat" id="btn-reset-verify" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 12px; background: #991b1b; color: #ffffff; font-size: 13px; font-weight: 700; text-decoration: none;">
+              <i data-lucide="refresh-cw" style="width: 15px; height: 15px;"></i>
+              <span>Cari Ulang Dokumen</span>
+            </a>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 9: 404 HALAMAN TIDAK DITEMUKAN
            ==================================================================== -->
       <section id="view-notfound" class="app-view hidden">
         <div class="view-main-container" style="max-width: 520px; text-align: center; padding: 60px 20px;">

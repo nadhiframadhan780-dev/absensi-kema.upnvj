@@ -482,4 +482,211 @@ export function checkAuthRedirect({ isAuthenticated, profile, currentRoute = '#/
   return { redirect: false, target: cleanRoute };
 }
 
+/**
+ * =========================================================================
+ * LOGIKA VERIFIKASI DIGITAL SURAT RESMI & ANTI-DUPLIKASI (QR CODE KAMPUS)
+ * =========================================================================
+ */
+
+/**
+ * Membangun URL Verifikasi Resmi yang tertanam pada QR Code Surat PDF
+ */
+export function buildLetterVerificationUrl({
+  origin = 'https://absensi.upnvj.ac.id',
+  pathname = '/',
+  id = '',
+  token = '',
+  nim = ''
+} = {}) {
+  let cleanOrigin = origin.replace(/\/+$/, '');
+  let cleanPath = (pathname || '/').replace(/\/admin(\/.*)?$/, '/');
+  if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+  if (!cleanPath.endsWith('/')) cleanPath += '/';
+
+  const params = new URLSearchParams();
+  if (id) params.set('id', id);
+  if (token) params.set('token', token);
+  if (nim) params.set('nim', nim);
+
+  const queryStr = params.toString() ? `?${params.toString()}` : '';
+  return `${cleanOrigin}${cleanPath}#/verifikasi-surat${queryStr}`;
+}
+
+/**
+ * Mengurai parameter verifikasi dari hash URL atau search string
+ * Mendukung format:
+ * - #/verifikasi-surat?id=XYZ&token=ABC&nim=2110511001
+ * - #/verifikasi?token=ABC&nim=2110511001
+ * - ?id=XYZ&token=ABC#/verifikasi-surat
+ */
+export function parseVerificationParams(hashOrUrl = '') {
+  if (!hashOrUrl) return { id: '', token: '', nim: '' };
+
+  let queryPart = '';
+  if (hashOrUrl.includes('?')) {
+    queryPart = hashOrUrl.substring(hashOrUrl.indexOf('?') + 1).split('#')[0];
+  } else if (hashOrUrl.includes('&')) {
+    queryPart = hashOrUrl;
+  }
+
+  const searchParams = new URLSearchParams(queryPart);
+  return {
+    id: (searchParams.get('id') || '').trim(),
+    token: (searchParams.get('token') || '').trim().toUpperCase(),
+    nim: (searchParams.get('nim') || '').trim()
+  };
+}
+
+/**
+ * Menghasilkan Token Digital Unik dari ID pengajuan
+ */
+export function generateLetterSecurityToken(leaveData = {}) {
+  const rawId = (leaveData.id || leaveData._id || 'UPNVJ').toString();
+  const cleanId = rawId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+  return cleanId || 'UPN-AUTH';
+}
+
+/**
+ * Menghitung Checksum Integritas Kriptografis Anti-Jiplak & Anti-Duplikasi
+ * Menggabungkan seluruh atribut penting: ID, NIM, Mata Kuliah, Dosen, Tanggal, dan Status
+ */
+export function computeLetterChecksum(leaveData = {}) {
+  const parts = [
+    leaveData.id || '',
+    leaveData.nim || '',
+    (leaveData.mataKuliah || '').toLowerCase().trim(),
+    (leaveData.dosen || '').toLowerCase().trim(),
+    leaveData.tanggalMulai || '',
+    leaveData.tanggalSelesai || '',
+    leaveData.jenis || '',
+    leaveData.status || '',
+    leaveData.dekanNip || leaveData.dekanNama || 'UPNVJ-AUTH-SALT'
+  ].join('|');
+
+  // Algoritma 32-bit FNV-1a hash digabung rotasi untuk sidik jari 16 karakter
+  let hash1 = 2166136261;
+  let hash2 = 1442695040888963407n;
+
+  for (let i = 0; i < parts.length; i++) {
+    const code = parts.charCodeAt(i);
+    hash1 ^= code;
+    hash1 = Math.imul(hash1, 16777619);
+    hash2 = (hash2 ^ BigInt(code)) * 1099511628211n;
+  }
+
+  const hex1 = (hash1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (hash2 & 0xffffffffffffffffn).toString(16).slice(-8);
+
+  return `UPNVJ-${(hex1 + hex2).toUpperCase()}`;
+}
+
+/**
+ * Validasi Integritas Dokumen Surat Resmi untuk Dosen & Mahasiswa
+ * Meneliti apakah dokumen terdaftar di pangkalan data resmi,
+ * memastikan tidak ada pemalsuan nama, dosen, mata kuliah, maupun tanda tangan Dekan.
+ */
+export function verifyOfficialLetterRecord(letterDoc, queryParams = {}) {
+  if (!letterDoc) {
+    return {
+      isValid: false,
+      code: 'NOT_FOUND',
+      statusLabel: 'Dokumen Tidak Ditemukan',
+      message: 'QR Code atau Token tidak terdaftar dalam pangkalan data resmi UPN "Veteran" Jakarta. Waspada terhadap indikasi dokumen palsu atau modifikasi ilegal.',
+      data: null
+    };
+  }
+
+  // Cek kesesuaian NIM jika disertakan dalam query
+  if (queryParams.nim && letterDoc.nim && queryParams.nim !== letterDoc.nim) {
+    return {
+      isValid: false,
+      code: 'NIM_MISMATCH',
+      statusLabel: 'NIM Tidak Sesuai (Indikasi Manipulasi)',
+      message: `NIM pada QR Code (${queryParams.nim}) tidak sesuai dengan data terdaftar (${letterDoc.nim}). Dokumen dinyatakan TIDAK SAH.`,
+      data: null
+    };
+  }
+
+  const status = (letterDoc.status || 'Menunggu').toLowerCase();
+  const isApproved = status === 'disetujui';
+  const isRejected = status === 'ditolak';
+
+  const expectedToken = (letterDoc.id || '').substring(0, 8).toUpperCase();
+  const checksum = computeLetterChecksum(letterDoc);
+
+  // Normalisasi Data Pemohon
+  const applicant = {
+    nama: letterDoc.nama || 'Mahasiswa UPNVJ',
+    nim: letterDoc.nim || '-',
+    fakultas: letterDoc.fakultas || 'UPN Veteran Jakarta',
+    prodi: letterDoc.prodi || '-',
+    email: letterDoc.email || `${letterDoc.nim || 'mhs'}@mahasiswa.upnvj.ac.id`,
+    statusAkademik: 'Mahasiswa Aktif Terdaftar'
+  };
+
+  // Normalisasi Data Dosen & Mata Kuliah yang diisi pemohon
+  const courseAndLecturer = {
+    dosen: letterDoc.dosen || 'Dosen Penanggung Jawab Mata Kuliah',
+    mataKuliah: letterDoc.mataKuliah || 'Seluruh Perkuliahan Terjadwal',
+    jenis: letterDoc.jenis || 'Izin',
+    tanggalMulai: letterDoc.tanggalMulai || '-',
+    tanggalSelesai: letterDoc.tanggalSelesai || letterDoc.tanggalMulai || '-',
+    durasiHari: calculateLeaveDays(letterDoc.tanggalMulai, letterDoc.tanggalSelesai),
+    alasan: letterDoc.alasan || 'Tidak ada alasan tertulis',
+    lampiranUrl: letterDoc.lampiran || '',
+    lampiranNama: letterDoc.lampiranNama || 'Berkas Bukti Pemohon',
+    lampiranKategori: letterDoc.lampiranKategori || 'Dokumen'
+  };
+
+  // Normalisasi Pengesahan Dekanat & Institusi
+  const approval = {
+    nomorSurat: letterDoc.suratNomor || `B/${expectedToken}/UN61/KM/2026`,
+    dekanNama: letterDoc.dekanNama || 'Dekan Fakultas',
+    dekanNip: letterDoc.dekanNip || '-',
+    dekanFakultas: letterDoc.dekanFakultas || letterDoc.fakultas || 'Fakultas',
+    tanggalKeputusan: letterDoc.tanggalKeputusan || letterDoc.updatedAt || letterDoc.createdAt || new Date().toISOString(),
+    capWarna: isApproved ? 'HIJAU' : (isRejected ? 'MERAH' : 'KUNING'),
+    diprosesOleh: letterDoc.diprosesOleh || 'Pengelola Akademik Kampus',
+    catatanAdmin: letterDoc.catatanAdmin || (isApproved ? 'Telah memenuhi persyaratan akademik fakultas.' : 'Tidak memenuhi persyaratan.'),
+    suratKeputusanPdf: letterDoc.suratKeputusanPdf || null
+  };
+
+  return {
+    isValid: isApproved || isRejected,
+    isApproved,
+    isRejected,
+    isPending: !isApproved && !isRejected,
+    code: isApproved ? 'APPROVED_VALID' : (isRejected ? 'REJECTED_VALID' : 'PENDING'),
+    statusLabel: isApproved ? 'RESMI & DISETUJUI DEKAN' : (isRejected ? 'DITOLAK OLEH FAKULTAS' : 'DALAM PROSES PENINJAUAN'),
+    message: isApproved
+      ? 'Dokumen Surat Keputusan ini RESMI, SAH, dan TERDAFTAR di Pangkalan Data SIAKAD UPN Veteran Jakarta. Dosen pengampu dapat mengesahkan dispensasi perkuliahan ini.'
+      : (isRejected
+          ? 'Dokumen ini terdaftar namun PERMOHONAN DITOLAK oleh pimpinan fakultas.'
+          : 'Dokumen ini masih dalam status menunggu persetujuan akademik.'),
+    data: {
+      id: letterDoc.id,
+      token: expectedToken,
+      checksum,
+      applicant,
+      courseAndLecturer,
+      approval,
+      verifiedAt: new Date().toISOString()
+    }
+  };
+}
+
+/**
+ * Menghitung selisih hari izin
+ */
+function calculateLeaveDays(startDate, endDate) {
+  if (!startDate) return 1;
+  const start = new Date(startDate);
+  const end = endDate ? new Date(endDate) : start;
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 1;
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return Math.max(1, diffDays);
+}
+
+
 

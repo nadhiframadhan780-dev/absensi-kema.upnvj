@@ -10,6 +10,7 @@
  */
 
 import { getDekanByFaculty } from './data.js';
+import { buildLetterVerificationUrl } from './logic.js';
 
 /**
  * Format tanggal Indonesia lengkap: "24 Mei 2026"
@@ -641,9 +642,23 @@ export async function generateOfficialLeavePdf({
 
   try {
     const tempDiv = document.createElement('div');
+    const currentOrigin = (typeof window !== 'undefined' && window.location && window.location.origin)
+      ? window.location.origin
+      : 'https://absensi.upnvj.ac.id';
+    const currentPath = (typeof window !== 'undefined' && window.location && window.location.pathname)
+      ? window.location.pathname
+      : '/';
+    const verifyUrl = buildLetterVerificationUrl({
+      origin: currentOrigin,
+      pathname: currentPath,
+      id: leaveData.id || '',
+      token: docToken,
+      nim: leaveData.nim || ''
+    });
+
     if (window.QRCode) {
       new window.QRCode(tempDiv, {
-        text: `https://absensi.upnvj.ac.id/#/verifikasi?token=${docToken}&nim=${leaveData.nim}`,
+        text: verifyUrl,
         width: 100,
         height: 100,
         correctLevel: 2
