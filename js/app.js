@@ -2979,6 +2979,26 @@ function openStudentLeaveModal(leaveId) {
 
     <!-- Metadata Grid -->
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; font-size: 13px;">
+      <div style="background: #f0fdf4; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #86efac; grid-column: 1 / -1;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <div>
+            <span style="display: block; font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.04em;">
+              ID Dokumen Digital (Untuk Cek Keaslian Surat):
+            </span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+              <strong style="color: #0b2341; font-family: 'JetBrains Mono', monospace; font-size: 15px;">
+                ${(item.id || '').substring(0, 8).toUpperCase()}
+              </strong>
+              <span style="font-size: 12px; color: #475569;">· Atau bisa cari langsung dengan <strong>NIM: ${escapeHtml(item.nim || '-')}</strong></span>
+            </div>
+          </div>
+          <button type="button" class="btn-copy-doc-token" data-token="${(item.id || '').substring(0, 8).toUpperCase()}" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #166534; background: #ffffff; border: 1px solid #86efac; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+            <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+            <span>Salin ID Dokumen</span>
+          </button>
+        </div>
+      </div>
+
       <div style="background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
         <span style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Mata Kuliah:</span>
         <strong style="color: #0b2341;">${escapeHtml(item.mataKuliah || '-')}</strong>
@@ -3098,6 +3118,17 @@ function openStudentLeaveModal(leaveId) {
         }
       };
     }
+  }
+
+  const btnCopyToken = modalBody.querySelector('.btn-copy-doc-token');
+  if (btnCopyToken) {
+    btnCopyToken.onclick = () => {
+      const tok = btnCopyToken.dataset.token;
+      if (tok && navigator.clipboard) {
+        navigator.clipboard.writeText(tok);
+        showToast('success', 'ID Dokumen Disalin', `ID Dokumen ${tok} berhasil disalin ke clipboard.`);
+      }
+    };
   }
 
   if (window.lucide) window.lucide.createIcons();
@@ -3427,13 +3458,59 @@ function renderInitialVerifyGuide() {
         <i data-lucide="qr-code" style="width: 36px; height: 36px;"></i>
       </div>
       <h3 style="font-size: 19px; font-weight: 800; color: #0b2341; margin-bottom: 6px;">
-        Verifikasi Surat Keputusan Mahasiswa
+        Verifikasi Keaslian Surat Keputusan Mahasiswa
       </h3>
-      <p style="font-size: 13.5px; color: #64748b; max-width: 580px; margin: 0 auto 24px; line-height: 1.6;">
-        Bapak/Ibu Dosen atau Pengelola Akademik dapat memindai <strong>QR Code</strong> di pojok kiri bawah lembar Surat Keputusan resmi yang diserahkan oleh mahasiswa, atau mengetikkan <strong>Token Digital</strong> pada kotak pencarian di atas.
+      <p style="font-size: 13.5px; color: #64748b; max-width: 620px; margin: 0 auto 24px; line-height: 1.6;">
+        Bapak/Ibu Dosen atau Mahasiswa dapat memvalidasi keaslian surat izin/sakit/dispensasi menggunakan salah satu dari <strong>4 cara mudah</strong> di bawah ini:
       </p>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; text-align: left; max-width: 720px; margin: 0 auto;">
+      <!-- PANDUAN LOKASI DOKUMEN ID & CARA VERIFIKASI -->
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 20px; text-align: left; max-width: 760px; margin: 0 auto 24px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: #0b2341; margin-bottom: 14px;">
+          <i data-lucide="help-circle" style="width: 18px; height: 18px; color: #0284c7;"></i>
+          <span>Di Mana Menemukan ID Dokumen atau Nomor Surat?</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+          <div style="background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1;">
+            <div style="font-size: 12px; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 4px;">
+              Cara 1: Gunakan NIM Mahasiswa (Paling Mudah)
+            </div>
+            <div style="font-size: 12.5px; color: #334155; line-height: 1.5;">
+              Cukup ketik <strong>10 Digit NIM Mahasiswa</strong> (contoh: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #0369a1; font-weight: 700;">2110511045</code>) pada kolom pencarian di atas, lalu klik <strong>Verifikasi Dokumen</strong>.
+            </div>
+          </div>
+
+          <div style="background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1;">
+            <div style="font-size: 12px; font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 4px;">
+              Cara 2: Nomor Surat (Bagian Atas Lembar)
+            </div>
+            <div style="font-size: 12.5px; color: #334155; line-height: 1.5;">
+              Tertera di baris atas surat di bawah kop UPNVJ: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #0b2341; font-weight: 700;">Nomor: B/142/UN61.1/...</code>. Anda bisa ketik nomor surat lengkap atau bagian nomornya.
+            </div>
+          </div>
+
+          <div style="background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1;">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; text-transform: uppercase; margin-bottom: 4px;">
+              Cara 3: ID Dokumen Digital (Footer Samping QR)
+            </div>
+            <div style="font-size: 12.5px; color: #334155; line-height: 1.5;">
+              Pada kotak abu-abu di bagian paling bawah lembar PDF (sebelah kanan QR Code), tertulis teks: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #7c3aed; font-weight: 700;">ID Dokumen Digital: XXXXXXXX</code>. Ketik 8 karakter tersebut.
+            </div>
+          </div>
+
+          <div style="background: #ffffff; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1;">
+            <div style="font-size: 12px; font-weight: 800; color: #b45309; text-transform: uppercase; margin-bottom: 4px;">
+              Cara 4: Scan Langsung QR Code Lembar Fisik
+            </div>
+            <div style="font-size: 12.5px; color: #334155; line-height: 1.5;">
+              Gunakan kamera handphone Anda atau klik tombol <strong>"Buka Pemindai Kamera"</strong> di atas untuk memindai QR Code di pojok kiri bawah surat. Sistem akan memvalidasi secara instan tanpa perlu mengetik apapun!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; text-align: left; max-width: 760px; margin: 0 auto;">
         <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;">
           <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; color: #0b2341; margin-bottom: 4px;">
             <i data-lucide="shield-check" style="width: 16px; height: 16px; color: #059669;"></i>

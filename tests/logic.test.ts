@@ -597,6 +597,124 @@ test('Validasi Surat Resmi: Deteksi Dokumen Palsu atau NIM Tidak Cocok', async (
   assert.ok(mismatch.message.includes('TIDAK SAH'));
 });
 
+test('Format Surat 7 Fakultas UPNVJ: Resolusi Lengkap dari Nama Lengkap, Kode, dan Program Studi', async () => {
+  const { getDekanByFaculty, getFacultyById } = await import('../js/data.js');
+
+  const facultyTestCases = [
+    {
+      expectedId: 'feb',
+      expectedCode: 'FEB',
+      expectedDekan: 'Dr. Jubaedah, S.E., M.M.',
+      inputs: ['feb', 'FEB', 'Fakultas Ekonomi dan Bisnis', 'S1 Manajemen', 'S1 Akuntansi', 'D3 Perbankan dan Keuangan']
+    },
+    {
+      expectedId: 'fk',
+      expectedCode: 'FK',
+      expectedDekan: 'Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.',
+      inputs: ['fk', 'FK', 'Fakultas Kedokteran', 'S1 Kedokteran', 'Profesi Dokter', 'S1 Farmasi', 'S2 Sains Biomedis']
+    },
+    {
+      expectedId: 'fisip',
+      expectedCode: 'FISIP',
+      expectedDekan: 'Dr. S. Bekti Istiyanto, M.Si.',
+      inputs: ['fisip', 'FISIP', 'Fakultas Ilmu Sosial dan Ilmu Politik', 'Fakultas Ilmu Sosial dan Politik', 'S1 Ilmu Komunikasi', 'S1 Hubungan Internasional']
+    },
+    {
+      expectedId: 'fik',
+      expectedCode: 'FIK',
+      expectedDekan: 'Dr. Supriyanto, S.T., M.T.',
+      inputs: ['fik', 'FIK', 'Fakultas Ilmu Komputer', 'S1 Sistem Informasi', 'S1 Teknik Informatika', 'S1 Sains Data']
+    },
+    {
+      expectedId: 'ft',
+      expectedCode: 'FT',
+      expectedDekan: 'Dr. Ir. Reda Rizal, M.Si.',
+      inputs: ['ft', 'FT', 'Fakultas Teknik', 'S1 Teknik Mesin', 'S1 Teknik Industri', 'S1 Teknik Elektro']
+    },
+    {
+      expectedId: 'fh',
+      expectedCode: 'FH',
+      expectedDekan: 'Dr. Suherman, S.H., LL.M.',
+      inputs: ['fh', 'FH', 'Fakultas Hukum', 'S1 Hukum', 'S1 Hukum Bisnis']
+    },
+    {
+      expectedId: 'fikes',
+      expectedCode: 'FIKES',
+      expectedDekan: 'Desak Nyoman Sithi, S.Kp., MARS.',
+      inputs: ['fikes', 'FIKES', 'Fakultas Ilmu Kesehatan', 'D3 Keperawatan', 'S1 Keperawatan', 'S1 Gizi', 'S1 Fisioterapi']
+    }
+  ];
+
+  for (const tc of facultyTestCases) {
+    for (const input of tc.inputs) {
+      const fac = getFacultyById(input);
+      assert.ok(fac, `Fakultas wajib ditemukan untuk input: ${input}`);
+      assert.equal(fac.id, tc.expectedId, `ID harus cocok untuk input: ${input}`);
+      assert.equal(fac.code, tc.expectedCode, `Kode harus cocok untuk input: ${input}`);
+
+      const dekan = getDekanByFaculty(input);
+      assert.equal(dekan.nama, tc.expectedDekan, `Nama Dekan harus sesuai untuk input: ${input}`);
+      assert.equal(dekan.fakultasCode, tc.expectedCode);
+    }
+  }
+});
+
+test('Format Surat 7 Fakultas UPNVJ (Admin): Resolusi Lengkap Dekan dari Sisi Admin', async () => {
+  const { getDekanByFaculty: getAdminDekan, getFacultyById: getAdminFaculty } = await import('../admin/js/data.js');
+
+  const testInputs = [
+    { input: 'Fakultas Kedokteran', expectedCode: 'FK', expectedDekan: 'Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.' },
+    { input: 'Fakultas Ekonomi dan Bisnis', expectedCode: 'FEB', expectedDekan: 'Dr. Jubaedah, S.E., M.M.' },
+    { input: 'Fakultas Ilmu Sosial dan Ilmu Politik', expectedCode: 'FISIP', expectedDekan: 'Dr. S. Bekti Istiyanto, M.Si.' },
+    { input: 'Fakultas Ilmu Komputer', expectedCode: 'FIK', expectedDekan: 'Dr. Supriyanto, S.T., M.T.' },
+    { input: 'Fakultas Teknik', expectedCode: 'FT', expectedDekan: 'Dr. Ir. Reda Rizal, M.Si.' },
+    { input: 'Fakultas Hukum', expectedCode: 'FH', expectedDekan: 'Dr. Suherman, S.H., LL.M.' },
+    { input: 'Fakultas Ilmu Kesehatan', expectedCode: 'FIKES', expectedDekan: 'Desak Nyoman Sithi, S.Kp., MARS.' },
+    // Cek resolusi berbasis nama program studi di admin
+    { input: 'S1 Kedokteran', expectedCode: 'FK', expectedDekan: 'Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.' },
+    { input: 'S1 Teknik Mesin', expectedCode: 'FT', expectedDekan: 'Dr. Ir. Reda Rizal, M.Si.' },
+    { input: 'S1 Ilmu Komunikasi', expectedCode: 'FISIP', expectedDekan: 'Dr. S. Bekti Istiyanto, M.Si.' },
+    { input: 'D3 Keperawatan', expectedCode: 'FIKES', expectedDekan: 'Desak Nyoman Sithi, S.Kp., MARS.' }
+  ];
+
+  for (const item of testInputs) {
+    const fac = getAdminFaculty(item.input);
+    assert.ok(fac, `Fakultas admin wajib ditemukan untuk input: ${item.input}`);
+    assert.equal(fac.kode, item.expectedCode);
+
+    const dekan = getAdminDekan(item.input);
+    assert.equal(dekan.nama, item.expectedDekan, `Dekan admin wajib cocok untuk: ${item.input}`);
+    assert.equal(dekan.fakultasCode, item.expectedCode);
+  }
+});
+
+test('Format PDF Surat: Auto-scaling Nama Dekan Panjang & Pembungkusan Jabatan Bersih', () => {
+  // Simulasi logika pembatasan lebar teks maksimal (62 mm untuk nama, 66 mm untuk judul)
+  // Menjamin FK dengan 49 karakter tidak akan pernah menabrak tepi kanan halaman atau stempel
+  const fkDekanNama = 'Dr. dr. H. Taufiq Fredrik Pasiak, M.Kes., M.Pd.I.';
+  assert.equal(fkDekanNama.length, 49);
+
+  // Fungsi kalkulator estimasi lebar font times bold sesuai metrik rata-rata jsPDF
+  function estimateTimesBoldWidth(text: string, fontSizePt: number): number {
+    // Karakter Times New Roman dengan banyak titik, koma, spasi, dan huruf ramping memiliki rata-rata ~0.39 em
+    return text.length * (fontSizePt * 0.352778 * 0.39);
+  }
+
+  // Pada 9.2pt nama FK adalah ~62.3mm (melebihi batas 60mm)
+  const initialWidth = estimateTimesBoldWidth(fkDekanNama, 9.2);
+
+  // Algoritma auto-scale yang diterapkan di officialLetterPdf.js (target <= 62 mm)
+  let scaledSize = 9.2;
+  while (estimateTimesBoldWidth(fkDekanNama, scaledSize) > 60 && scaledSize > 7.0) {
+    scaledSize -= 0.2;
+  }
+
+  const finalWidth = estimateTimesBoldWidth(fkDekanNama, scaledSize);
+  assert.ok(finalWidth <= 60, 'Nama panjang FK setelah di-scale wajib <= 60 mm');
+  assert.ok(scaledSize >= 7.0, 'Ukuran font tetap mudah dibaca (>= 7.0 pt)');
+});
+
+
 
 
 

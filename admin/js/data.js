@@ -49,7 +49,7 @@ export const FAKULTAS_DATA = {
   fisip: {
     id: "fisip",
     kode: "FISIP",
-    nama: "Fakultas Ilmu Sosial dan Politik",
+    nama: "Fakultas Ilmu Sosial dan Ilmu Politik",
     ikon: "landmark",
     warna: "#7c3aed",
     dekan: {
@@ -206,10 +206,120 @@ export function getFacultyList() {
   return Object.values(FAKULTAS_DATA);
 }
 
-export function getFacultyById(id) {
-  if (!id) return null;
-  const normalized = id.toLowerCase();
-  return FAKULTAS_DATA[normalized] || Object.values(FAKULTAS_DATA).find(f => f.kode.toLowerCase() === normalized) || null;
+export function getFacultyById(idOrNameOrProdi) {
+  if (!idOrNameOrProdi) return null;
+  const raw = String(idOrNameOrProdi).trim();
+  const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const faculties = Object.values(FAKULTAS_DATA);
+
+  // 1. Direct match by id or code
+  const direct = faculties.find(f => 
+    f.id.toLowerCase() === clean || 
+    f.kode.toLowerCase() === clean
+  );
+  if (direct) return direct;
+
+  const lowerRaw = raw.toLowerCase();
+
+  // 2. Exact or substring match on faculty name
+  const nameMatch = faculties.find(f => {
+    const fName = f.nama.toLowerCase();
+    return fName === lowerRaw || fName.includes(lowerRaw) || lowerRaw.includes(fName) ||
+      (f.id === 'fisip' && (lowerRaw.includes('sosial dan politik') || lowerRaw.includes('sosial dan ilmu politik')));
+  });
+  if (nameMatch) return nameMatch;
+
+  // 3. Match against known Prodi list
+  const prodiMatch = faculties.find(f => 
+    f.prodi.some(p => {
+      const pLower = p.nama.toLowerCase();
+      return pLower === lowerRaw || lowerRaw.includes(pLower) || pLower.includes(lowerRaw);
+    })
+  );
+  if (prodiMatch) return prodiMatch;
+
+  // 4. Keyword fuzzy matcher
+  // Kedokteran (FK)
+  if (
+    lowerRaw.includes('kedokteran') || 
+    lowerRaw.includes('dokter') || 
+    lowerRaw.includes('farmasi') || 
+    lowerRaw.includes('biomedis') || 
+    lowerRaw.includes('radiologi') || 
+    lowerRaw.includes('biologi') ||
+    clean === 'fk'
+  ) {
+    return FAKULTAS_DATA.fk || null;
+  }
+
+  // Ekonomi & Bisnis (FEB)
+  if (
+    lowerRaw.includes('ekonomi') || 
+    lowerRaw.includes('bisnis') || 
+    lowerRaw.includes('manajemen') || 
+    lowerRaw.includes('akuntansi') || 
+    lowerRaw.includes('perbankan') || 
+    lowerRaw.includes('syariah') ||
+    clean === 'feb'
+  ) {
+    return FAKULTAS_DATA.feb || null;
+  }
+
+  // Ilmu Komputer (FIK)
+  if (
+    lowerRaw.includes('komputer') || 
+    lowerRaw.includes('informatika') || 
+    lowerRaw.includes('sistem informasi') || 
+    lowerRaw.includes('sains data') ||
+    clean === 'fik'
+  ) {
+    return FAKULTAS_DATA.fik || null;
+  }
+
+  // Teknik (FT)
+  if (
+    lowerRaw.includes('teknik') || 
+    lowerRaw.includes('mesin') || 
+    lowerRaw.includes('industri') || 
+    lowerRaw.includes('perkapalan') || 
+    lowerRaw.includes('elektro') || 
+    lowerRaw.includes('logistik') ||
+    clean === 'ft'
+  ) {
+    return FAKULTAS_DATA.ft || null;
+  }
+
+  // Hukum (FH)
+  if (lowerRaw.includes('hukum') || clean === 'fh') {
+    return FAKULTAS_DATA.fh || null;
+  }
+
+  // Ilmu Sosial & Politik (FISIP)
+  if (
+    lowerRaw.includes('sosial') || 
+    lowerRaw.includes('politik') || 
+    lowerRaw.includes('komunikasi') || 
+    lowerRaw.includes('hubungan internasional') || 
+    lowerRaw.includes('fisip') ||
+    clean === 'fisip'
+  ) {
+    return FAKULTAS_DATA.fisip || null;
+  }
+
+  // Ilmu Kesehatan (FIKES)
+  if (
+    lowerRaw.includes('kesehatan') || 
+    lowerRaw.includes('keperawatan') || 
+    lowerRaw.includes('fisioterapi') || 
+    lowerRaw.includes('gizi') || 
+    lowerRaw.includes('ners') || 
+    lowerRaw.includes('fikes') ||
+    clean === 'fikes'
+  ) {
+    return FAKULTAS_DATA.fikes || null;
+  }
+
+  return null;
 }
 
 export function getAllProdiList() {

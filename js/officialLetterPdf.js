@@ -271,8 +271,10 @@ export function drawOfficialUniversityStamp(doc, {
 
   // 7. Teks Busur Bawah (Fakultas & Keabsahan)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.8);
-  doc.text(`FAKULTAS ${fakultasCode.toUpperCase()}`, cx, cy + radius - 3.8, { align: 'center' });
+  const cleanCode = (fakultasCode || 'UPNVJ').replace(/^fakultas\s+/i, '').trim().toUpperCase();
+  const codeFontSize = cleanCode.length > 5 ? 4.2 : 4.8;
+  doc.setFontSize(codeFontSize);
+  doc.text(`FAKULTAS ${cleanCode}`, cx, cy + radius - 3.8, { align: 'center' });
   doc.setFontSize(4.2);
   doc.text(`SIAKAD * ${docToken}`, cx, cy + radius - 1.8, { align: 'center' });
 
@@ -303,7 +305,7 @@ export async function generateOfficialLeavePdf({
     compress: true
   });
 
-  const dekanInfo = getDekanByFaculty(leaveData.fakultas || 'FIK');
+  const dekanInfo = getDekanByFaculty(leaveData.fakultas || leaveData.prodi || 'FIK');
   const tanggalKeputusan = formatIndonesianDateLong(new Date());
   const nomorSurat = leaveData.nomorSurat || generateOfficialLetterNumber(leaveData.id, dekanInfo.fakultasCode);
   const docToken = (leaveData.id || 'UPN').substring(0, 8).toUpperCase();
@@ -330,9 +332,11 @@ export async function generateOfficialLeavePdf({
   doc.setFontSize(12.5);
   doc.text('UNIVERSITAS PEMBANGUNAN NASIONAL "VETERAN" JAKARTA', 116, 19.5, { align: 'center' });
 
-  doc.setFontSize(11);
+  const facUpper = (dekanInfo.fakultasName || 'FAKULTAS').toUpperCase();
+  const facFontSize = facUpper.length > 32 ? 9.8 : (facUpper.length > 25 ? 10.4 : 11);
+  doc.setFontSize(facFontSize);
   doc.setTextColor(15, 23, 42);
-  doc.text(dekanInfo.fakultasName.toUpperCase(), 116, 24.5, { align: 'center' });
+  doc.text(facUpper, 116, 24.5, { align: 'center' });
 
   doc.setFont('times', 'normal');
   doc.setFontSize(8);
@@ -569,12 +573,17 @@ export async function generateOfficialLeavePdf({
   doc.setTextColor(100, 116, 139);
   doc.text('*(Tanda tangan mengenai materai)', leftColX, materaiBoxY + materaiBoxH + 4, { align: 'center' });
 
-  // Nama & NIM Mahasiswa (Otomatis)
+  // Nama & NIM Mahasiswa (Otomatis dengan auto-scale jika nama panjang)
   const studentNameY = sigStartY + 33;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(11, 35, 65);
   const studentName = leaveData.nama || 'Nama Mahasiswa';
+  let studentFontSize = 9.2;
+  doc.setFont('times', 'bold');
+  doc.setFontSize(studentFontSize);
+  while (doc.getTextWidth(studentName) > 62 && studentFontSize > 7.0) {
+    studentFontSize -= 0.2;
+    doc.setFontSize(studentFontSize);
+  }
+  doc.setTextColor(11, 35, 65);
   doc.text(studentName, leftColX, studentNameY, { align: 'center' });
 
   // Garis bawah nama mahasiswa
@@ -584,9 +593,9 @@ export async function generateOfficialLeavePdf({
   doc.line(leftColX - (studentNameW / 2), studentNameY + 1, leftColX + (studentNameW / 2), studentNameY + 1);
 
   doc.setFont('times', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.2);
   doc.setTextColor(51, 65, 85);
-  doc.text(`NIM. ${leaveData.nim || '-'}`, leftColX, studentNameY + 5, { align: 'center' });
+  doc.text(`NIM. ${leaveData.nim || '-'}`, leftColX, studentNameY + 4.8, { align: 'center' });
 
   // --- SISI KANAN: DEKAN FAKULTAS ---
   doc.setFont('times', 'normal');
@@ -595,25 +604,40 @@ export async function generateOfficialLeavePdf({
   doc.text(`Jakarta, ${tanggalKeputusan}`, rightColX, sigStartY, { align: 'center' });
   doc.setFont('times', 'bold');
   doc.text('Mengesahkan,', rightColX, sigStartY + 4.2, { align: 'center' });
-  doc.text(`Dekan ${dekanInfo.fakultasName},`, rightColX, sigStartY + 8.4, { align: 'center' });
 
-  // Ruang Tanda Tangan Dekan
-  const dekanNameY = sigStartY + 33;
+  // Jabatan Dekan: Bungkus rapi (maksimal 66 mm) agar proporsional dan tidak menembus batas halaman
+  const dekanTitleText = `Dekan ${dekanInfo.fakultasName},`;
   doc.setFont('times', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(8.5);
+  const titleLines = doc.splitTextToSize(dekanTitleText, 66);
+  let titleY = sigStartY + 8.2;
+  titleLines.forEach((tLine) => {
+    doc.text(tLine, rightColX, titleY, { align: 'center' });
+    titleY += 3.8;
+  });
+
+  // Ruang Tanda Tangan Dekan dengan auto-scale agar gelar/nama panjang (misal FK) tetap rapi
+  const dekanNameY = sigStartY + 33;
+  let dekanFontSize = 9.2;
+  doc.setFont('times', 'bold');
+  doc.setFontSize(dekanFontSize);
+  while (doc.getTextWidth(dekanInfo.nama) > 62 && dekanFontSize > 7.0) {
+    dekanFontSize -= 0.2;
+    doc.setFontSize(dekanFontSize);
+  }
   doc.setTextColor(11, 35, 65);
   doc.text(dekanInfo.nama, rightColX, dekanNameY, { align: 'center' });
 
-  // Garis bawah nama dekan
+  // Garis bawah nama dekan presisi sesuai lebar teks terukur
   const dekanNameW = doc.getTextWidth(dekanInfo.nama);
   doc.setLineWidth(0.3);
   doc.setDrawColor(11, 35, 65);
-  doc.line(rightColX - (dekanNameW / 2), dekanNameY + 1, rightXToDekan(rightColX, dekanNameW), dekanNameY + 1);
+  doc.line(rightColX - (dekanNameW / 2), dekanNameY + 1, rightColX + (dekanNameW / 2), dekanNameY + 1);
 
   doc.setFont('times', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.2);
   doc.setTextColor(51, 65, 85);
-  doc.text(`NIP. ${dekanInfo.nip}`, rightColX, dekanNameY + 5, { align: 'center' });
+  doc.text(`NIP. ${dekanInfo.nip}`, rightColX, dekanNameY + 4.8, { align: 'center' });
 
   // --- POSISI STEMPEL RESMI PADA BAGIAN PENGESAHAN DEKAN ---
   // Stempel HIJAU (Disetujui) atau MERAH (Ditolak) pas di area tanda tangan & pengesahan Dekan
