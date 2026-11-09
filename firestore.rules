@@ -2,135 +2,173 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions autentikasi
+    // =========================================================================
+    // HELPER FUNCTIONS & ROLE-BASED ACCESS CONTROL (RBAC)
+    // =========================================================================
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isInstitusi() {
-      return isSignedIn() && 
-        request.auth.token.email.matches('.*@mahasiswa\\.upnvj\\.ac\\.id$');
+    // Email pengembang / superadministrator bawaan agar tidak pernah terkunci
+    function isSuperAdminEmail() {
+      return isSignedIn() && (
+        request.auth.token.email == 'nadhiframadhan780@gmail.com' ||
+        request.auth.token.email == 'admin@upnvj.ac.id'
+      );
     }
 
-    // Pengecekan Admin Aktif di koleksi admins/{uid}
+    // Cek apakah pengguna merupakan admin aktif di Firestore atau SuperAdmin Email
     function isAdmin() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.aktif == true;
-    }
-
-    function adminData() {
-      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+      return isSignedIn() && (
+        isSuperAdminEmail() ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.aktif == true ||
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ['superadmin', 'admin_fakultas', 'admin_prodi', 'dosen']))
+      );
     }
 
     function isSuperAdmin() {
-      return isAdmin() && adminData().role == 'superadmin';
+      return isSuperAdminEmail() || (
+        isAdmin() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'superadmin'
+      );
     }
 
-    function isFacultyAdmin(fac) {
-      return isAdmin() && (isSuperAdmin() || adminData().fakultas == fac);
-    }
-
-    function isProdiAdmin(fac, prod) {
-      return isAdmin() && (isSuperAdmin() || (adminData().fakultas == fac && adminData().prodi == prod));
-    }
-
-    function isDosen(dosenUid) {
-      return isAdmin() && (isSuperAdmin() || request.auth.uid == dosenUid);
-    }
-
-    // 1. Koleksi Profil Mahasiswa (students / mahasiswa)
+    // =========================================================================
+    // 1. PROFIL MAHASISWA (students & mahasiswa)
+    // Mahasiswa dapat membaca & mengedit profilnya sendiri, admin memiliki akses penuh
+    // =========================================================================
     match /students/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow create, update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow delete: if isSuperAdmin();
+      allow delete: if isAdmin();
     }
 
     match /mahasiswa/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow create, update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow delete: if isSuperAdmin();
+      allow delete: if isAdmin();
     }
 
-    // 2. Koleksi Presensi / Kehadiran (attendance / absensi)
+    // =========================================================================
+    // 2. PRESENSI & KEHADIRAN (attendance & absensi)
+    // Mahasiswa dapat mencatat presensi sendiri & membaca riwayat presensinya
+    // =========================================================================
     match /attendance/{docId} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
       allow create: if isSignedIn() && (
         request.resource.data.uid == request.auth.uid || 
         request.resource.data.userId == request.auth.uid || 
         isAdmin()
       );
-      allow update: if isAdmin(); // Mahasiswa dilarang keras mengubah data presensi
-      allow delete: if isSuperAdmin() || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /absensi/{docId} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
       allow create: if isSignedIn() && (
         request.resource.data.uid == request.auth.uid || 
         request.resource.data.userId == request.auth.uid || 
         isAdmin()
       );
-      allow update: if isAdmin();
-      allow delete: if isSuperAdmin() || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
-    // 3. Index Publik Verifikasi NIM
+    // =========================================================================
+    // 3. INDEX VALIDASI NIM (nim_index)
+    // Digunakan untuk verifikasi keunikan NIM mahasiswa dan aktivasi akun
+    // =========================================================================
     match /nim_index/{nim} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
     }
 
-    // 4. Koleksi Hak Akses Pengelola (admins/{uid})
+    // =========================================================================
+    // 4. DAFTAR ADMINISTRATOR & DOSEN (admins/{uid})
+    // =========================================================================
     match /admins/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
-      allow create, update, delete: if isSuperAdmin();
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSuperAdminEmail() || isSuperAdmin() || (isSignedIn() && request.auth.uid == uid && isSuperAdminEmail());
+      allow delete: if isSuperAdminEmail() || isSuperAdmin();
     }
 
-    // 5. Kurikulum Mata Kuliah (courses)
-    match /courses/{id} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-      allow delete: if isSuperAdmin() || isFacultyAdmin(resource.data.fakultas);
-    }
-
-    // 6. Sesi Perkuliahan / Pertemuan (sessions)
-    match /sessions/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isAdmin();
-      allow delete: if isSuperAdmin() || isAdmin();
-    }
-
-    // 7. Pengajuan Izin & Sakit (leaveRequests) - Publik dapat memverifikasi keaslian surat via QR code
+    // =========================================================================
+    // 5. PENGAJUAN IZIN / SAKIT / DISPENSASI (leaveRequests)
+    // PENTING: allow read: true agar Portal Verifikasi Surat & QR Code dapat divalidasi
+    // oleh Dosen Pengampu / umum tanpa kendala izin autentikasi
+    // =========================================================================
     match /leaveRequests/{id} {
-      allow read: true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAdmin(); // Hanya admin yang dapat menyetujui / menolak
-      allow delete: if isSuperAdmin();
+      allow read: if true;
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    // 8. Pengumuman Kampus (announcements)
-    match /announcements/{id} {
-      allow read: if isSignedIn();
+    // =========================================================================
+    // 6. KURIKULUM & MATA KULIAH (courses)
+    // =========================================================================
+    match /courses/{id} {
+      allow read: if true;
       allow write, delete: if isAdmin();
     }
 
-    // 9. Pusat Notifikasi Admin (adminNotifications)
+    // =========================================================================
+    // 7. SESI PERKULIAHAN & QR SCANNER (sessions)
+    // Mahasiswa dapat membaca jadwal sesi terbuka untuk check-in presensi
+    // =========================================================================
+    match /sessions/{id} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // 8. PENGUMUMAN KAMPUS (announcements)
+    // =========================================================================
+    match /announcements/{id} {
+      allow read: if true;
+      allow write, delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // 9. PUSAT NOTIFIKASI ADMIN (adminNotifications)
+    // =========================================================================
     match /adminNotifications/{id} {
       allow read, write: if isAdmin();
     }
 
-    // 10. Audit Log Keamanan (auditLogs) - STRICTLY IMMUTABLE (Hanya Create & Read)
+    // =========================================================================
+    // 10. AUDIT LOG KEAMANAN SISTEM (auditLogs) - IMMUTABLE
+    // =========================================================================
     match /auditLogs/{id} {
       allow read: if isAdmin();
-      allow create: if isAdmin() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false; // Dilarang keras diedit atau dihapus siapapun
+      allow create: if isSignedIn() || isAdmin();
+      allow update, delete: if false;
     }
 
-    // 11. Pengaturan Sistem (settings/{docId})
+    // =========================================================================
+    // 11. PENGATURAN SISTEM & AKADEMIK (settings/{docId})
+    // =========================================================================
     match /settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // 12. CATCH-ALL FALLBACK UNTUK ADMIN
+    // Memastikan fitur admin baru tidak pernah terblokir
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
   }
 }

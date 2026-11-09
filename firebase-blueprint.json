@@ -1,0 +1,198 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Profil mahasiswa UPNVJ",
+      "type": "object",
+      "properties": {
+        "nama": { "type": "string" },
+        "nim": { "type": "string" },
+        "email": { "type": "string" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "angkatan": { "type": "string" },
+        "semester": { "type": "string" },
+        "tanggalLahir": { "type": "string" },
+        "tempatLahir": { "type": "string" },
+        "jenisKelamin": { "type": "string" },
+        "noHp": { "type": "string" },
+        "alamat": { "type": "string" },
+        "fotoURL": { "type": "string" },
+        "profileComplete": { "type": "boolean" },
+        "aktif": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Catatan riwayat presensi perkuliahan mahasiswa",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "nim": { "type": "string" },
+        "nama": { "type": "string" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "mataKuliah": { "type": "string" },
+        "sesiId": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "waktu": { "type": "string" },
+        "status": { "type": "string" },
+        "metode": { "type": "string" },
+        "keterangan": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Pengajuan surat izin, sakit, atau dispensasi resmi",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "nim": { "type": "string" },
+        "nama": { "type": "string" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "mataKuliah": { "type": "string" },
+        "dosen": { "type": "string" },
+        "jenis": { "type": "string" },
+        "tanggalMulai": { "type": "string" },
+        "tanggalSelesai": { "type": "string" },
+        "alasan": { "type": "string" },
+        "status": { "type": "string" },
+        "catatanAdmin": { "type": "string" },
+        "diprosesOleh": { "type": "string" },
+        "lampiran": { "type": "string" },
+        "lampiranNama": { "type": "string" },
+        "suratKeputusanPdf": { "type": "string" },
+        "suratNomor": { "type": "string" },
+        "dekanNama": { "type": "string" },
+        "dekanNip": { "type": "string" },
+        "dekanFakultas": { "type": "string" },
+        "capWarna": { "type": "string" },
+        "capStatus": { "type": "string" },
+        "tanggalKeputusan": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Pengguna administrator / dosen UPNVJ",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "nama": { "type": "string" },
+        "role": { "type": "string" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "aktif": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Data kurikulum mata kuliah UPNVJ",
+      "type": "object",
+      "properties": {
+        "kode": { "type": "string" },
+        "nama": { "type": "string" },
+        "sks": { "type": "number" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "dosenPengampu": { "type": "string" }
+      }
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Sesi perkuliahan yang dibuka untuk presensi QR",
+      "type": "object",
+      "properties": {
+        "mataKuliah": { "type": "string" },
+        "kodeMk": { "type": "string" },
+        "fakultas": { "type": "string" },
+        "prodi": { "type": "string" },
+        "dosen": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "jamMulai": { "type": "string" },
+        "jamSelesai": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Pengumuman resmi institusi UPNVJ",
+      "type": "object",
+      "properties": {
+        "judul": { "type": "string" },
+        "konten": { "type": "string" },
+        "kategori": { "type": "string" },
+        "target": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Log audit keamanan dan aktivitas admin",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "nama": { "type": "string" },
+        "aksi": { "type": "string" },
+        "detail": { "type": "string" },
+        "ip": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Pengaturan umum sistem presensi",
+      "type": "object",
+      "properties": {
+        "academicYear": { "type": "string" },
+        "semester": { "type": "string" },
+        "lateToleranceMinutes": { "type": "number" },
+        "minAttendancePercent": { "type": "number" },
+        "maintenanceMode": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/students/{uid}": {
+      "schema": "Student",
+      "description": "Profil mahasiswa terdaftar"
+    },
+    "/attendance/{docId}": {
+      "schema": "Attendance",
+      "description": "Rekap kehadiran mahasiswa"
+    },
+    "/leaveRequests/{id}": {
+      "schema": "LeaveRequest",
+      "description": "Pengajuan izin, sakit, dan surat dispensasi resmi"
+    },
+    "/admins/{uid}": {
+      "schema": "AdminUser",
+      "description": "Daftar pengelola dan dosen"
+    },
+    "/courses/{id}": {
+      "schema": "Course",
+      "description": "Mata kuliah terjadwal"
+    },
+    "/sessions/{id}": {
+      "schema": "Session",
+      "description": "Sesi presensi perkuliahan"
+    },
+    "/announcements/{id}": {
+      "schema": "Announcement",
+      "description": "Pemberitahuan akademik"
+    },
+    "/auditLogs/{id}": {
+      "schema": "AuditLog",
+      "description": "Jejak audit dan keamanan"
+    },
+    "/settings/{docId}": {
+      "schema": "Setting",
+      "description": "Konfigurasi sistem global"
+    }
+  }
+}
